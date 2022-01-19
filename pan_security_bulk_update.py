@@ -1,3 +1,15 @@
+"""
+Author: Craig Beamish
+Date Written: Sometime early 2020
+Last Modified By: Craig Beamish
+Date Last Modified: 2020/12/10
+Date Last Tested: 2020/12/10
+Result: All currently written features working
+Description: Bulk update tool for Palo Alto security policies. Can be used with Panorama or the firewalls directly.
+Dependencies: pan-python
+Usage: python3 pan_security_bulk_update.py
+ All inputs required are in prompt format within the script.
+"""
 from pan.xapi import PanXapi
 from pan.xapi import PanXapiError
 from getpass import getpass

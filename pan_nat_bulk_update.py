@@ -1,3 +1,16 @@
+"""
+Author: Craig Beamish
+Date Written: 2020/12/10
+Last Modified By: Craig Beamish
+Date Last Modified: 2020/12/10
+Date Last Tested: Placeholder - still to be formed
+Result: 
+Description: Bulk update tool for Palo Alto NAT policies. Can be used with Panorama or the firewalls directly.
+Dependencies: pan-python
+Usage: python3 pan_nat_bulk_update.py
+ All inputs required are in prompt format within the script.
+"""
+
 from pan.xapi import PanXapi
 from pan.xapi import PanXapiError
 from getpass import getpass
