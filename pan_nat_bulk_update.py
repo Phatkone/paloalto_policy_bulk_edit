@@ -7,7 +7,7 @@ Date Last Tested: Placeholder - still to be formed
 Result: 
 Description: Bulk update tool for Palo Alto NAT policies. Can be used with Panorama or the firewalls directly.
 Dependencies: pan-python
-Usage: python3 pan_nat_bulk_update.py
+Usage: `python3 pan_nat_bulk_update.py` or `python3 pan_nat_bulk_update.py <host ip or fqdn>`
  All inputs required are in prompt format within the script.
 """
 

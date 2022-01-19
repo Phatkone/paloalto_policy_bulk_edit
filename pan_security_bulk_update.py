@@ -7,7 +7,7 @@ Date Last Tested: 2020/12/10
 Result: All currently written features working
 Description: Bulk update tool for Palo Alto security policies. Can be used with Panorama or the firewalls directly.
 Dependencies: pan-python
-Usage: python3 pan_security_bulk_update.py
+Usage: `python3 pan_security_bulk_update.py` or `python3 pan_security_bulk_update.py <host ip or fqdn>`
  All inputs required are in prompt format within the script.
 """
 from pan.xapi import PanXapi
