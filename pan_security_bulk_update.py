@@ -46,7 +46,7 @@ def get_selection(d: dict, s: str, r: bool = False) -> str:
     return input("> ")
 
 
-def verify_selection(d: dict, s: str, is_range: bool = False):
+def verify_selection(d: dict, s: str, is_range: bool = False, return_values: bool = False) -> ( dict | list | str):
     valid_option = False
     if len(d) < 1:
         print("{}\n Oops. No options found.".format(s))
@@ -68,6 +68,8 @@ def verify_selection(d: dict, s: str, is_range: bool = False):
                 continue
         else:
             if response.lower() == 'all':
+                if return_values:
+                    return list(d.values())
                 return d
             sub_valid = True
             count = 1
@@ -99,6 +101,11 @@ def verify_selection(d: dict, s: str, is_range: bool = False):
             if not sub_valid:
                 continue
         valid_option = True
+    if return_values:
+        if not is_range:
+            return d[ret]
+        else:
+            return list(ret.values())
     del valid_option, d, s, is_range
     return ret
 
@@ -943,7 +950,7 @@ def main(fw_host: str = None) -> None:
     # Rename Rules
     if get_task == 6:
         actions = {1: 'Allow', 2: 'Deny', 3: 'Drop', 4: 'Reset Client', 5: 'Reset Server', 6: 'Reset Both'}
-        rule_action = actions[verify_selection(actions, "What policy action to set?")]
+        rule_action = verify_selection(actions, "What policy action to set?", False, True)
         set_rule_action(panx, rules, panorama, rule_action, devicegroup)
 
     # Commit and Push
@@ -956,13 +963,13 @@ def main(fw_host: str = None) -> None:
         print("Committing...")
 
         # Commit to Firewall / Panorama
-        panx.commit(cmd='<commit>{}</commit>'.format("<description>{}</description>".format(commit_description) if commit_description != "" else ""), sync=True, interval=2)
+        panx.commit(cmd='<commit>{}</commit>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else ""), sync=True, interval=2)
         
         # Push policies down to firewalls in chosen device group.
         if panorama:
             if panx.status == 'success':
                 print("Commit Successful, Pushing to devices...")
-                panx.commit(cmd='<commit-all><shared-policy><description>{}</description><device-group><entry name="{}"/></device-group></shared-policy></commit-all>'.format(commit_description, devicegroup), action='all')
+                panx.commit(cmd='<commit-all><shared-policy>{}<device-group><entry name="{}"/></device-group></shared-policy></commit-all>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else "", devicegroup), action='all')
     
         # Find policy push job status'
         if panx.status == 'success' and panorama:
