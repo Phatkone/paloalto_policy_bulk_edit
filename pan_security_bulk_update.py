@@ -1002,9 +1002,6 @@ def main(fw_host: str = None) -> None:
         else:
             print('Failed to commit: {}'.format(panx.xml_document))
 
-    #show dhcp server lease interface all
-    #panx.op('show dhcp server lease interface "all"', cmd_xml=True)
-    #print(panx.xml_document)
 
 if __name__ == '__main__':
     # Set firewall / panorama address
