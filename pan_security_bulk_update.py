@@ -589,6 +589,19 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
                 print(panx.status.capitalize())
 
 
+def set_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action : str, devicegroup : str = "") -> None:
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
+    else:
+        for rule in rules['devicelocal']:
+            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+            panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
+                
+
+    pass
 
 def main(fw_host: str = None) -> None:
     if fw_host is None:
@@ -673,9 +686,9 @@ def main(fw_host: str = None) -> None:
         2:'Delete from Rule(s)',
         3:'Enable Rule(s)',
         4:'Disable Rule(s)',
-        5:'Rename Rule(s)' #,
-        #6:'Update Profiles',  to add later
-        #7:'Change Rule Action' to add later
+        5:'Rename Rule(s)',
+        6:'Change Rule Action', #to add later
+        #7:'Update Profiles'  to add later
     }
     add_delete_actions = {
         1:'Source Zone',
@@ -926,6 +939,12 @@ def main(fw_host: str = None) -> None:
     # Rename Rules
     if get_task == 5:
         rename_rules(panx, rules, panorama, rule_data, devicegroup)
+    
+    # Rename Rules
+    if get_task == 6:
+        actions = {1: 'Allow', 2: 'Deny', 3: 'Drop', 4: 'Reset Client', 5: 'Reset Server', 6: 'Reset Both'}
+        rule_action = actions[verify_selection(actions, "What policy action to set?")]
+        set_rule_action(panx, rules, panorama, rule_action, devicegroup)
 
     # Commit and Push
     do_commit = input("Would you like to commit? (Y/N):\n Note. this will push to all devices in selected the device group.\n ") if panorama else input("Would you like to commit? (Y/N):\n ")
@@ -937,7 +956,7 @@ def main(fw_host: str = None) -> None:
         print("Committing...")
 
         # Commit to Firewall / Panorama
-        panx.commit(cmd='<commit><description>{}</description></commit>'.format(commit_description), sync=True, interval=2)
+        panx.commit(cmd='<commit>{}</commit>'.format("<description>{}</description>".format(commit_description) if commit_description != "" else ""), sync=True, interval=2)
         
         # Push policies down to firewalls in chosen device group.
         if panorama:
