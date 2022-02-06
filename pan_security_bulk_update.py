@@ -169,7 +169,7 @@ def add_remove_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action :
         for template in templates_xml[0]:
             templates[count] = template.get("name")
             count += 1
-        template = templates[verify_selection(templates, "Which Template does the zone belong to?:", False)]
+        template = verify_selection(templates, "Which Template does the zone belong to?:", False, True)
         del templates_xml, count, templates      
         xpath = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/zone'.format(template)
     else:
@@ -340,7 +340,7 @@ def add_remove_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool
                 log_forwarders[count] = entry.get('name')
                 count += 1
 
-        log_forwarder = log_forwarders[verify_selection(log_forwarders,"Which log forwarding profile would you like to apply?:", False)]
+        log_forwarder = verify_selection(log_forwarders,"Which log forwarding profile would you like to apply?:", False, True)
         del log_forwarders, count
 
         if panorama:
@@ -472,7 +472,7 @@ def add_remove_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool,
     del count
     
     if (action == 'add'):
-        tag = tags[verify_selection(tags, "Which Tag(s) do you wish to {}?:".format(action))]
+        tag = verify_selection(tags, "Which Tag(s) do you wish to {}?:".format(action), False, True)
         # Create XML object to push with API call
         tag_xml = "<group-tag>{}</group-tag>".format(tag) 
 
@@ -727,7 +727,7 @@ def main(fw_host: str = None) -> None:
         for dg in xm.find('devicegroups'):
             devicegroups[count] = dg.get('name')
             count+=1
-        devicegroup = devicegroups[verify_selection(devicegroups, "Which Device Group do you want to modify:", False)]
+        devicegroup = verify_selection(devicegroups, "Which Device Group do you want to modify:", False, True)
         del devicegroups, count
     else:
         devicegroup = ""
