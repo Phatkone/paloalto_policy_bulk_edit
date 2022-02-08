@@ -667,7 +667,6 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
                 elif action == 4:
                     print("Setting service to 'Application Default' for rule: {} in rulebase: {}".format(rule, rulebase))
                 panx.edit(xpath=xpath,element=service_xml[rule])
-                print(xpath,service_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
