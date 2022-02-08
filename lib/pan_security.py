@@ -13,13 +13,11 @@ GNU GPL License applies.
 
 """
 from pan.xapi import PanXapi
-from getpass import getpass
 from time import sleep
 from re import match
 from lib.functions import verify_selection
 from lib.functions import job_status
 from lib.functions import get_device_group_stack
-import sys
 
 
 

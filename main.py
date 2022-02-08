@@ -21,7 +21,7 @@ import binascii
 import base64
 import os
 import sys
-import lib.pan_security
+from lib import pan_security
 from lib.functions import file_exists
 
 
@@ -104,7 +104,7 @@ def main(pan_host: str = None) -> None:
     if model == "Panorama":
         panorama = True
     
-    lib.pan_security.main(panx, panorama)
+    pan_security.main(panx, panorama)
 
 if __name__ == '__main__':
     # Set firewall / panorama address
