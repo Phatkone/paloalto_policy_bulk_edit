@@ -22,20 +22,6 @@ from lib.functions import get_parent_dgs
 
 
 
-def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : str, devicegroup: str = "") -> None:
-    if panorama:
-        for rulebase, rulelist in rules.items():
-            for rule in rulelist:
-                print("{} rule: '{}' in rulebase: {}".format('Enabling' if action == 'enable' else 'Disabling', rule, rulebase))
-                panx.set(xpath='/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase,rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
-                print(panx.status.capitalize())
-    else:
-        for rule in rules['devicelocal']:
-            print("{} rule: '{}'".format('Enabling' if action == 'enable' else 'Disabling', rule))
-            panx.set(xpath='/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
-            print(panx.status.capitalize())
-
-
 def add_remove_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
     zones = {}
     # Get template if Panorama
@@ -160,6 +146,52 @@ def add_remove_rule_address(panx : PanXapi, rules: dict, panorama : bool, action
             xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
             print("{} address: {} {} rule: '{}'".format('Adding' if action == 'add' else "Removing", address, 'to' if action == 'add' else "from", rule))
             panx.edit(xpath=xpath,element=addr_xml[rule])
+            print(panx.status.capitalize())
+
+
+def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "") -> None:
+
+    print("Which category do you wish to {}:\n enter 'all' or 'any' to set to any.\n".format(action))
+    if action == 'remove':
+        print("Note: If all categories are removed from a rule, it will be set to 'any'\n")
+    category = input("> ")
+    new_category_list = {}
+    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    for rules_list in rules.values():
+        for rule in rules_list:
+            new_category_list[rule] = []
+            for cat in rule_data[rule]['category']:
+                if (action == 'add' and cat != 'any') or (action == 'remove' and cat != category and cat.replace('>','&gt;').replace('<','&lt;') != category):
+                    new_category_list[rule].append(cat.replace('>','&gt;').replace('<','&lt;'))
+            if action == 'add' and category.replace('>','&gt;').replace('<','&lt;') not in new_category_list[rule]:
+                new_category_list[rule].append(category.replace('>','&gt;').replace('<','&lt;'))
+
+    
+    # Create XML object to push with API call
+    category_xml = {}
+    for rule, url_cateogry in new_category_list.items():
+        category_xml[rule] = "<category>"
+        if len(url_cateogry) == 0:
+            category_xml[rule] += '<member>any</member>'
+        if (category in ['any','all']):
+            category_xml[rule] += '<member>any</member>'
+        else:
+            for cat in url_cateogry:
+                category_xml[rule] += '<member>{}</member>'.format(cat)
+        category_xml[rule] += "</category>"
+        
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/category'.format(devicegroup, rulebase, rule)
+                print("{} service(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule, rulebase))
+                panx.edit(xpath=xpath,element=category_xml[rule])
+                print(panx.status.capitalize())
+    else:
+        for rule in rules['devicelocal']:
+            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
+            print("{} service(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule))
+            panx.edit(xpath=xpath,element=category_xml[rule])
             print(panx.status.capitalize())
 
 
@@ -376,6 +408,20 @@ def add_remove_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool,
                 panx.delete(xpath=xpath)
             print(panx.status.capitalize())
     
+
+def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : str, devicegroup: str = "") -> None:
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                print("{} rule: '{}' in rulebase: {}".format('Enabling' if action == 'enable' else 'Disabling', rule, rulebase))
+                panx.set(xpath='/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase,rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
+                print(panx.status.capitalize())
+    else:
+        for rule in rules['devicelocal']:
+            print("{} rule: '{}'".format('Enabling' if action == 'enable' else 'Disabling', rule))
+            panx.set(xpath='/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
+            print(panx.status.capitalize())
+
 
 def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
     action = verify_selection({
@@ -678,52 +724,6 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
             elif action == 4:
                 print("Setting service to 'Application Default' for rule: {}".format(rule))
             panx.edit(xpath=xpath,element=service_xml[rule])
-            print(panx.status.capitalize())
-
-
-def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "") -> None:
-
-    print("Which category do you wish to {}:\n enter 'all' or 'any' to set to any.\n".format(action))
-    if action == 'remove':
-        print("Note: If all categories are removed from a rule, it will be set to 'any'\n")
-    category = input("> ")
-    new_category_list = {}
-    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
-    for rules_list in rules.values():
-        for rule in rules_list:
-            new_category_list[rule] = []
-            for cat in rule_data[rule]['category']:
-                if (action == 'add' and cat != 'any') or (action == 'remove' and cat != category and cat.replace('>','&gt;').replace('<','&lt;') != category):
-                    new_category_list[rule].append(cat.replace('>','&gt;').replace('<','&lt;'))
-            if action == 'add' and category.replace('>','&gt;').replace('<','&lt;') not in new_category_list[rule]:
-                new_category_list[rule].append(category.replace('>','&gt;').replace('<','&lt;'))
-
-    
-    # Create XML object to push with API call
-    category_xml = {}
-    for rule, url_cateogry in new_category_list.items():
-        category_xml[rule] = "<category>"
-        if len(url_cateogry) == 0:
-            category_xml[rule] += '<member>any</member>'
-        if (category in ['any','all']):
-            category_xml[rule] += '<member>any</member>'
-        else:
-            for cat in url_cateogry:
-                category_xml[rule] += '<member>{}</member>'.format(cat)
-        category_xml[rule] += "</category>"
-        
-    if panorama:
-        for rulebase, rulelist in rules.items():
-            for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/category'.format(devicegroup, rulebase, rule)
-                print("{} service(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule, rulebase))
-                panx.edit(xpath=xpath,element=category_xml[rule])
-                print(panx.status.capitalize())
-    else:
-        for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
-            print("{} service(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule))
-            panx.edit(xpath=xpath,element=category_xml[rule])
             print(panx.status.capitalize())
 
 
