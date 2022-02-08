@@ -681,6 +681,52 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
             print(panx.status.capitalize())
 
 
+def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "") -> None:
+
+    print("Which category do you wish to {}:\n enter 'all' or 'any' to set to any.\n".format(action))
+    if action == 'remove':
+        print("Note: If all categories are removed from a rule, it will be set to 'any'\n")
+    category = input("> ")
+    new_category_list = {}
+    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    for rules_list in rules.values():
+        for rule in rules_list:
+            new_category_list[rule] = []
+            for cat in rule_data[rule]['category']:
+                if (action == 'add' and cat != 'any') or (action == 'remove' and cat != category and cat.replace('>','&gt;').replace('<','&lt;') != category):
+                    new_category_list[rule].append(cat.replace('>','&gt;').replace('<','&lt;'))
+            if action == 'add' and category.replace('>','&gt;').replace('<','&lt;') not in new_category_list[rule]:
+                new_category_list[rule].append(category.replace('>','&gt;').replace('<','&lt;'))
+
+    
+    # Create XML object to push with API call
+    category_xml = {}
+    for rule, url_cateogry in new_category_list.items():
+        category_xml[rule] = "<category>"
+        if len(url_cateogry) == 0:
+            category_xml[rule] += '<member>any</member>'
+        if (category in ['any','all']):
+            category_xml[rule] += '<member>any</member>'
+        else:
+            for cat in url_cateogry:
+                category_xml[rule] += '<member>{}</member>'.format(cat)
+        category_xml[rule] += "</category>"
+        
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/category'.format(devicegroup, rulebase, rule)
+                print("{} service(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule, rulebase))
+                panx.edit(xpath=xpath,element=category_xml[rule])
+                print(panx.status.capitalize())
+    else:
+        for rule in rules['devicelocal']:
+            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
+            print("{} service(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule))
+            panx.edit(xpath=xpath,element=category_xml[rule])
+            print(panx.status.capitalize())
+
+
 def main(panx: PanXapi = None, panorama: str = "") -> None:
 
     actions = {
@@ -701,7 +747,7 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
         4: 'Destination Address',
         5: 'Source User (Not Yet Functional)',   # to add later
         6: 'Application (Not Yet Functional)',   # to add later
-        7: 'URL Category (Not Yet Functional)',   # to add later
+        7: 'URL Category',   # to add later
         8: 'Log at Session Start',
         9: 'Log at Session End',
         10: 'Log Forwarding Profile',
@@ -890,6 +936,10 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
         if sub_task in [3,4]:
             add_remove_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
 
+        # URL Categories
+        if sub_task == 7:
+            update_url_category(panx, rules, panorama, rule_data, 'add', devicegroup)
+
         # log-end / log-start
         if sub_task in [8,9]:
             add_remove_start_end_logging(panx, rules, panorama, 'yes', 'start' if sub_task == 8 else 'end', devicegroup)
@@ -915,6 +965,10 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
         # Source / Destination Address
         if sub_task in [3,4]:
             add_remove_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+
+        # URL Categories
+        if sub_task == 7:
+            update_url_category(panx, rules, panorama, rule_data, 'remove', devicegroup)
 
         # log-end / log-start
         if sub_task in [8,9]:
