@@ -18,6 +18,7 @@ from re import match
 from lib.functions import verify_selection
 from lib.functions import job_status
 from lib.functions import get_device_group_stack
+from lib.functions import get_parent_dgs
 
 
 
