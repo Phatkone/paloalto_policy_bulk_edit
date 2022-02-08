@@ -83,9 +83,9 @@ def main(pan_host: str = None) -> None:
         hostname = sysinfo['hostname']
         model = sysinfo['model']
         version = sysinfo['sw-version']
-        print("\n" + "".center(60,'*'))
-        print("Successfully connected to: {} ({})".format(hostname, pan_host).center(60) + "\n" + "Model: {}".format(model).center(60) +"\n" + "Version: {}".format(version).center(60))
-        print("".center(60,'*')+"\n")
+        print("\n" + "".center(80,'*'))
+        print("Successfully connected to: {} ({})".format(hostname, pan_host).center(80) + "\n" + "Model: {}".format(model).center(80) +"\n" + "Version: {}".format(version).center(80))
+        print("".center(80,'*')+"\n")
         sleep(1)
         # Uncomment to dump device info into text file
         #import json
