@@ -13,135 +13,14 @@ GNU GPL License applies.
 
 """
 from pan.xapi import PanXapi
-from pan.xapi import PanXapiError
 from getpass import getpass
 from time import sleep
 from re import match
-import binascii
-import base64
-import os
+from lib.functions import verify_selection
+from lib.functions import job_status
+from lib.functions import get_device_group_stack
 import sys
 
-def file_exists(file: str) -> bool:
-    try:
-        f = open(file,'r')
-        f.close()
-        del f
-        return True
-    except:
-        return False
-
-
-def get_selection(d: dict, s: str, r: bool = False) -> str:
-    print()
-    print()
-    for k, v in d.items():
-        print("[{}] {}".format(k,v))
-    print(s)
-    if r:
-        print("Enter a single value, or multiple values separated by a space.")
-        print("Ranges can be entered with a hyphen (I.E. 2-5) or type all for all values.")
-    else:
-        print("Enter a single value.")
-    return input("> ")
-
-
-def verify_selection(d: dict, s: str, is_range: bool = False, return_values: bool = False) -> ( dict | list | str):
-    valid_option = False
-    if len(d) < 1:
-        print("{}\n Oops. No options found.".format(s))
-        exit(-1)
-    if is_range:
-        ret = {}
-    else:
-        ret = ""
-    while not valid_option:
-        response = get_selection(d, s, is_range).strip()
-        if not is_range:
-            try:
-                ret = int(response)
-            except ValueError:
-                print("Invalid Selection.")
-                continue
-            if ret not in range(1,len(d)+1):
-                print("Invalid Selection.")
-                continue
-        else:
-            if response.lower() == 'all':
-                if return_values:
-                    return list(d.values())
-                return d
-            sub_valid = True
-            count = 1
-            for r in response.split(' '):
-                try:
-                    if '-' in r:
-                        split = r.split('-')
-                        r1 = int(split[0])
-                        r2 = int(split[1])
-                        if r1 not in range(1,len(d)+1) or r2 not in range(1,len(d)+1):
-                            print("Invalid Selection.")
-                            sub_valid = False
-                            continue
-                        for i in range(r1, r2+1):
-                            ret[count] = d[i]
-                            count += 1
-                        continue
-                    r = int(r)
-                except ValueError:
-                    print("Invalid Selection.")
-                    sub_valid = False
-                    continue
-                if r not in range(1,len(d)+1):
-                    print("Invalid Selection.")
-                    sub_valid = False
-                    continue
-                ret[count] = d[r]
-                count += 1
-            if not sub_valid:
-                continue
-        valid_option = True
-    if return_values:
-        if not is_range:
-            return d[ret]
-        else:
-            return list(ret.values())
-    del valid_option, d, s, is_range
-    return ret
-
-
-def job_status(xapi: PanXapi, job: str) -> tuple:
-	xapi.op(cmd='<show><jobs><id>{}</id></jobs></show>'.format(job))
-	results = {}
-	devices = xapi.element_root[0][0].find('devices')
-	for device in devices:
-		results[device.find('devicename').text] = device.find('result').text
-	return xapi.status, results
-
-
-def get_device_group_stack(xapi: PanXapi, dg_stack: dict = {}) -> dict:
-    xpath = '/config/readonly/devices/entry[@name=\'localhost.localdomain\']/device-group'
-    xapi.get(xpath=xpath)
-    xm_root = xapi.element_root.find('result')
-    if int(xm_root.get('count')) < 1:
-        return dg_stack
-    dgs = xm_root.find('device-group')
-    for dg in dgs:
-        parent_dg = dg.find('parent-dg')
-        if parent_dg is not None:
-            dg_stack[dg.get('name')] = parent_dg.text
-    return dg_stack
-
-
-def get_parent_dgs(xapi: PanXapi, dg: str, dg_stack: dict, response_list: list = []) -> list:
-    if dg not in response_list:
-        response_list.append(dg)
-    if dg in dg_stack.keys():
-        if dg_stack[dg] not in response_list:
-            response_list.append(dg_stack[dg])
-        if dg_stack[dg] in dg_stack.keys():
-            response_list = get_parent_dgs(xapi, dg_stack[dg], dg_stack, response_list)
-    return response_list
 
 
 def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : str, devicegroup: str = "") -> None:
@@ -673,86 +552,11 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
 
 
 def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+    
     pass
 
-def main(fw_host: str = None) -> None:
-    if fw_host is None:
-        fw_host = input("Enter the address of the firewall:\n ")
-    save_key = False
-    key_file = ".{}".format(fw_host.replace('.','-'))
-    fw_key = None
-    fw_uid = None
-    fw_pwd = None
-    panorama = False
-    
-    data = {
-        'hostname':fw_host
-    }
+def main(panx: PanXapi = None, panorama: str = "") -> None:
 
-    if file_exists(key_file):
-        f = open(key_file, 'r')
-        try:
-            fw_key = base64.standard_b64decode(f.readline()).decode()
-        except binascii.Error:
-            main(fw_host)
-        f.close()
-        del f
-        data['api_key'] = fw_key
-    else:
-        fw_uid = input("Enter the API username:\n ")
-        fw_pwd = getpass("Enter the API password:\n ")
-        sk = input("Save API key for later use? (Y/N):\n ")
-        if sk[0].lower() == 'y':
-            save_key = True
-            del sk
-        data['api_username'] = fw_uid
-        data['api_password'] = fw_pwd
-    
-    panx = PanXapi(**data)
-    print("Connecting to device...")
-    # Save the key if desired.
-    if fw_key is None and save_key:
-        try:
-            key = base64.standard_b64encode(panx.keygen().encode()).decode()
-            f = open(key_file, 'w')
-            print("Saving API key...")
-            f.write(key)
-            f.close
-        except PanXapiError as e:
-            print("API Error: {}".format(e))
-            exit()
-
-    #Check system reachable and retrieve system information
-    try:
-        panx.op(cmd='show system info', cmd_xml=True)
-        xm = panx.element_root.find('result').find('system')
-        sysinfo = {}
-        for e in xm:
-            sysinfo[e.tag] = e.text
-        del e,xm
-        hostname = sysinfo['hostname']
-        model = sysinfo['model']
-        version = sysinfo['sw-version']
-        print("\n" + "".center(60,'*'))
-        print("Successfully connected to: {} ({})".format(hostname, fw_host).center(60) + "\n" + "Model: {}".format(model).center(60) +"\n" + "Version: {}".format(version).center(60))
-        print("".center(60,'*')+"\n")
-        sleep(1)
-        # Uncomment to dump device info into text file
-        #import json
-        #f = open("{}-info.txt".format(fw_host.replace('.','-')),'w')
-        #f.write(json.dumps(sysinfo,indent=2))
-        #f.close()
-    except PanXapiError as e:
-        print("API Error: {}".format(e))
-        if '403' in str(e) and fw_key is not None:
-            # Delete the saved key if an unauthorised result is returned (case of password/key roll over)
-            os.remove(key_file)
-            print("Deleting saved key, please try again.")
-        main()
-        exit()
-
-    if model == "Panorama":
-        panorama = True
     actions = {
         1:'Add to Rule(s)',
         2:'Delete from Rule(s)',
@@ -1075,15 +879,5 @@ def main(fw_host: str = None) -> None:
 
 
 if __name__ == '__main__':
-    # Set firewall / panorama address
-    fw_host = sys.argv[1:2][0] if len(sys.argv) > 1 else input("What is the firewall or Panorama address?:\n")
-    
-    if fw_host is not None:
-        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$',fw_host) and not match (r'^([a-zA-Z0-9\-]+\.)+[a-zA-Z0-9\-]+$',fw_host):
-            print("Invalid host entered...{}".format(fw_host)) 
-            fw_host = None
-        try:
-            main(fw_host)
-        except KeyboardInterrupt:
-            print("Cancelled by keyboard interrupt")
-            exit()
+    print("Call script from main.py")
+    exit()
