@@ -14,10 +14,6 @@ GNU GPL License applies.
 """
 
 from pan.xapi import PanXapi
-from pan.xapi import PanXapiError
-from getpass import getpass
-from time import sleep
-from re import Match
 
 def file_exists(file: str) -> bool:
     try:

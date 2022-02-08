@@ -238,7 +238,6 @@ def add_remove_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool
 
 def add_remove_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
     tags = {}
-    # Set xpath
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
     
@@ -248,9 +247,10 @@ def add_remove_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action :
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
-            for tag in xm[0]:
-                tags[count] = tag.get('name')
-                count+=1
+            if len(xm):
+                for tag in xm[0]:
+                    tags[count] = tag.get('name')
+                    count+=1
     
     if devicegroup not in dg_list or not panorama:
         xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/tag'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/tag'
@@ -258,9 +258,10 @@ def add_remove_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action :
         panx.get(xpath)
         xm = panx.element_root.find('result')
         count = 1
-        for tag in xm[0]:
-            tags[count] = tag.get('name')
-            count+=1
+        if len(xm):
+            for tag in xm[0]:
+                tags[count] = tag.get('name')
+                count+=1
             
     if panorama: #get tags from 'Shared'
         xpath = '/config/shared/tag'
@@ -334,9 +335,10 @@ def add_remove_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool,
         panx.get(xpath)
         xm = panx.element_root.find('result')
         count = 1
-        for tag in xm[0]:
-            tags[count] = tag.get('name')
-            count+=1
+        if len(xm):
+            for tag in xm[0]:
+                tags[count] = tag.get('name')
+                count+=1
             
     if panorama: #get tags from 'Shared'
         xpath = '/config/shared/tag'
@@ -551,35 +553,161 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
 
 
 def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+    action = verify_selection({
+        1: 'Add Service',
+        2: 'Remove Service',
+        3: 'Set to Any',
+        4: 'Set to Application Default'
+    }, "What action would you like to take?:")
+
+    service_selection = {}
+
+    if action in [1,2]:
+        services = {}
+        dg_stack = get_device_group_stack(panx) if panorama else {}
+        dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
+        count = 1
+        
+        if len(dg_list) > 0 and devicegroup != "":
+            for dg in dg_list:
+                #Get service list for selection
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service'.format(dg)
+                panx.get(xpath)
+                xm = panx.element_root.find('result')
+                if len(xm):
+                    for service in xm[0]:
+                        services[count] = service.get('name')
+                        count+=1
+                #Get service groups list for selection
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service-group'.format(dg)
+                panx.get(xpath)
+                xm = panx.element_root.find('result')
+                if len(xm):
+                    for service_group in xm[0]:
+                        services[count] = service_group.get('name')
+                        count+=1
+        
+        if devicegroup not in dg_list or not panorama:
+            #Get service list for selection
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/service'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service in xm[0]:
+                    services[count] = service.get('name')
+                    count+=1
+            #Get service groups list for selection
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service-group'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/service-group'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service_group in xm[0]:
+                    services[count] = service_group.get('name')
+                    count+=1
+                
+        if panorama: 
+            #get services from 'Shared'
+            xpath = '/config/shared/service'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service in xm[0]:
+                    services[count] = service.get('name')
+                    count+=1
+            #get services from 'predefined'
+            xpath = '/config/predefined/service'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service in xm[0]:
+                    services[count] = service.get('name')
+                    count+=1
+        del count
+
+        service_selection = verify_selection(services, "Which Service(s) do you wish to {}?:".format(action), True, True)
+        del services, dg_stack, dg_list
     
-    pass
+
+    new_service_list = {}
+    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    for rules_list in rules.values():
+        for rule in rules_list:
+            new_service_list[rule] = []
+            if action in [1,2]:
+                for service in rule_data[rule]['service']:
+                    if (action == 1 and service not in ['any','application-default']) or (action == 2 and service not in service_selection and service.replace('>','&gt;').replace('<','&lt;') not in service_selection):
+                        new_service_list[rule].append(service.replace('>','&gt;').replace('<','&lt;'))
+                for service in service_selection:
+                    if action == 1 and service.replace('>','&gt;').replace('<','&lt;') not in new_service_list[rule]:
+                        new_service_list[rule].append(service.replace('>','&gt;').replace('<','&lt;'))
+            elif action == 3:
+                new_service_list[rule].append("any")
+            elif action == 4:
+                new_service_list[rule].append('application-default')
+    
+    # Create XML object to push with API call
+    service_xml = {}
+    for rule, service_list in new_service_list.items():
+        service_xml[rule] = "<service>"
+        if len(service_list) == 0:
+            service_xml[rule] += '<member>application-default</member>'
+        else:
+            for service in service_list:
+                service_xml[rule] += '<member>{}</member>'.format(service)
+        service_xml[rule] += "</service>"
+        
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/service'.format(devicegroup, rulebase, rule)
+                if action in [1,2]:
+                    print("{} service(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 1 else 'Removing', " ".join(service_selection), 'to' if action == 1 else 'from', rule, rulebase))
+                elif action == 3:
+                    print("Setting service to 'Any' for rule: {} in rulebase: {}".format(rule, rulebase))
+                elif action == 4:
+                    print("Setting service to 'Application Default' for rule: {} in rulebase: {}".format(rule, rulebase))
+                panx.edit(xpath=xpath,element=service_xml[rule])
+                print(xpath,service_xml[rule])
+                print(panx.status.capitalize())
+    else:
+        for rule in rules['devicelocal']:
+            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/service'.format(rule)
+            if action in [1,2]:
+                print("{} service(s): {} {}  rule: '{}'".format('Adding' if action == 1 else 'Removing', " ".join(service_selection), 'to' if action == 1 else 'from', rule))
+            elif action == 3:
+                print("Setting service to 'Any' for rule: {}".format(rule))
+            elif action == 4:
+                print("Setting service to 'Application Default' for rule: {}".format(rule))
+            panx.edit(xpath=xpath,element=service_xml[rule])
+            print(panx.status.capitalize())
+
 
 def main(panx: PanXapi = None, panorama: str = "") -> None:
 
     actions = {
-        1:'Add to Rule(s)',
-        2:'Delete from Rule(s)',
-        3:'Enable Rule(s)',
-        4:'Disable Rule(s)',
-        5:'Rename Rule(s)',
-        6:'Change Rule Action',
-        7: 'Description'#,
+        1: 'Add to Rule(s)',
+        2: 'Delete from Rule(s)',
+        3: 'Enable Rule(s)',
+        4: 'Disable Rule(s)',
+        5: 'Rename Rule(s)',
+        6: 'Change Rule Action',
+        7: 'Description',
+        8: 'Update Service(s)' #,
         #8:'Update Profiles' to add later
     }
     add_delete_actions = {
-        1:'Source Zone',
-        2:'Destination Zone',
-        3:'Source Address',
-        4:'Destination Address',
-        5:'Source User (Not Yet Functional)',   # to add later
-        6:'Application (Not Yet Functional)',   # to add later
-        7:'Service (Not Yet Functional)',   # to add later
-        8:'URL Category (Not Yet Functional)',   # to add later
-        9:'Log at Session Start',
-        10:'Log at Session End',
-        11:'Log Forwarding Profile',
-        12: 'Tag',
-        13: 'Group by Tag'
+        1: 'Source Zone',
+        2: 'Destination Zone',
+        3: 'Source Address',
+        4: 'Destination Address',
+        5: 'Source User (Not Yet Functional)',   # to add later
+        6: 'Application (Not Yet Functional)',   # to add later
+        7: 'URL Category (Not Yet Functional)',   # to add later
+        8: 'Log at Session Start',
+        9: 'Log at Session End',
+        10: 'Log Forwarding Profile',
+        11: 'Tag',
+        12: 'Group by Tag'
     }
 
 
@@ -764,19 +892,19 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
             add_remove_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
 
         # log-end / log-start
-        if sub_task in [9,10]:
-            add_remove_start_end_logging(panx, rules, panorama, 'yes', 'start' if sub_task == 9 else 'end', devicegroup)
+        if sub_task in [8,9]:
+            add_remove_start_end_logging(panx, rules, panorama, 'yes', 'start' if sub_task == 8 else 'end', devicegroup)
 
         # Log Forwarding
-        if sub_task == 11:
+        if sub_task == 10:
             add_remove_rule_log_forwarding(panx,rules,panorama,'add',rule_data, devicegroup)
         
         # Tags
-        if sub_task == 12:
+        if sub_task == 11:
             add_remove_rule_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
         # Group by Tags
-        if sub_task == 13:
+        if sub_task == 12:
             add_remove_rule_group_by_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
     # Remove From Security Policies
@@ -790,19 +918,19 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
             add_remove_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
 
         # log-end / log-start
-        if sub_task in [9,10]:
-            add_remove_start_end_logging(panx, rules, panorama, 'no', 'start' if sub_task == 9 else 'end', devicegroup)
+        if sub_task in [8,9]:
+            add_remove_start_end_logging(panx, rules, panorama, 'no', 'start' if sub_task == 8 else 'end', devicegroup)
             
         # Log Forwarding
-        if sub_task == 11:
+        if sub_task == 10:
             add_remove_rule_log_forwarding(panx,rules,panorama,'remove',rule_data, devicegroup)
         
         # Tags
-        if sub_task == 12:
+        if sub_task == 11:
             add_remove_rule_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
         # Group by Tags
-        if sub_task == 13:
+        if sub_task == 12:
             add_remove_rule_group_by_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
     # Enable Rules
@@ -826,6 +954,10 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
     # Rule Description
     if get_task == 7:
         update_description(panx, rules, panorama, rule_data, devicegroup)
+    
+    # Services
+    if get_task == 8:
+        update_service(panx, rules, panorama, rule_data, devicegroup)
 
     # Commit and Push
     do_commit = input("Would you like to commit? (Y/N):\n Note. this will push to all devices in selected the device group.\n ") if panorama else input("Would you like to commit? (Y/N):\n ")
