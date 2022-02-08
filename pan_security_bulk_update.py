@@ -608,7 +608,68 @@ def set_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action :
             panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
                 
 
-    pass
+def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+    action = verify_selection({
+        1: 'Append rule names',
+        2: 'Prepend rule names',
+        3: 'Left trim rule names',
+        4: 'Right trim rule names'
+    }, "Which action would you like to take?")
+    if action in [1,2]: #Append/Prepend
+        str_add = input("What string would you like to add?\n> ")
+
+        if panorama:
+            for rulebase, rulelist in rules.items():
+                for rule in rulelist:
+                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
+                    if len(new_des) > 1023:
+                        print("Description length is too long. Skipping for {}.".format(rule))
+                        continue
+                    print("Setting description for: {}.".format(rule))
+                    panx.set(xpath=xpath,element="<description>{}</description>".format(new_des))
+                    print(panx.status.capitalize())
+        else:
+            for rule in rules['devicelocal']:
+                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
+                if len(new_des) > 1023:
+                    print("Name length is too long. Skipping for {}.".format(rule))
+                    continue
+                print("Setting description for: {}.".format(rule))
+                panx.set(xpath=xpath,element="<description>{}</description>".format(new_des))
+                print(panx.status.capitalize())
+                
+    elif action in [3,4]: #Left/Right trim
+        str_trim = input("What string would you like to trim?\n> ")
+        trimlen = len(str_trim)
+        if panorama:
+            for rulebase, rulelist in rules.items():
+                for rule in rulelist:
+                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    if action == 3:
+                        new_des = rule_data[rule]['description'][trimlen:] if rule_data[rule]['description'][0:trimlen] == str_trim else rule_data[rule]['description']
+                    if action == 4:
+                        new_des = rule_data[rule]['description'][0:len(rule)-trimlen] if rule_data[rule]['description'][-trimlen:] == str_trim else rule_data[rule]['description']
+                    if len(new_des) > 1023:
+                        print("Description length is too long. Skipping for {}.".format(rule))
+                        continue
+                    print("Setting description for: {}.".format(rule))
+                    panx.set(xpath=xpath,element="<description>{}</description>".format(new_des))
+                    print(panx.status.capitalize())
+        else:
+            for rule in rules['devicelocal']:
+                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                if action == 3:
+                    new_des = rule_data[rule]['description'][trimlen:] if rule_data[rule]['description'][0:trimlen] == str_trim else rule_data[rule]['description']
+                if action == 4:
+                    new_des = rule_data[rule]['description'][0:len(rule)-trimlen] if rule_data[rule]['description'][-trimlen:] == str_trim else rule_data[rule]['description']
+                if len(new_des) > 1023:
+                    print("Name length is too long. Skipping for {}.".format(rule))
+                    continue
+                print("Setting description for: {}.".format(rule))
+                panx.set(xpath=xpath,element="<description>{}</description>".format(new_des))
+                print(panx.status.capitalize())
 
 def main(fw_host: str = None) -> None:
     if fw_host is None:
@@ -694,8 +755,9 @@ def main(fw_host: str = None) -> None:
         3:'Enable Rule(s)',
         4:'Disable Rule(s)',
         5:'Rename Rule(s)',
-        6:'Change Rule Action', #to add later
-        #7:'Update Profiles'  to add later
+        6:'Change Rule Action',
+        7: 'Description'#,
+        #8:'Update Profiles' to add later
     }
     add_delete_actions = {
         1:'Source Zone',
@@ -710,8 +772,7 @@ def main(fw_host: str = None) -> None:
         10:'Log at Session End',
         11:'Log Forwarding Profile',
         12: 'Tag',
-        13: 'Group by Tag'#,
-        #14: 'Comment' # to add later
+        13: 'Group by Tag'
     }
 
 
@@ -810,6 +871,8 @@ def main(fw_host: str = None) -> None:
 
         if r['xml'].find('description') is not None:
             rule_data[rule]['description'] = r['xml'].find('description').text
+        else:
+            rule_data[rule]['description'] = ""
 
         rule_data[rule]['to'] = []
         for z in to_zones:
@@ -952,6 +1015,10 @@ def main(fw_host: str = None) -> None:
         actions = {1: 'Allow', 2: 'Deny', 3: 'Drop', 4: 'Reset Client', 5: 'Reset Server', 6: 'Reset Both'}
         rule_action = verify_selection(actions, "What policy action to set?", False, True)
         set_rule_action(panx, rules, panorama, rule_action, devicegroup)
+    
+    # Rule Description
+    if get_task == 7:
+        update_description(panx, rules, panorama, rule_data, devicegroup)
 
     # Commit and Push
     do_commit = input("Would you like to commit? (Y/N):\n Note. this will push to all devices in selected the device group.\n ") if panorama else input("Would you like to commit? (Y/N):\n ")
@@ -1016,3 +1083,74 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             print("Cancelled by keyboard interrupt")
             exit()
+
+
+## Applications filtering: https://<host-address>/php/utils/router.php/ObjectsDirect.CompleteApplication
+"""
+Request headers
+POST /php/utils/router.php/ObjectsDirect.completeApplication HTTP/1.1
+Host: <host address>
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:96.0) Gecko/20100101 Firefox/96.0
+Accept: */*
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate, br
+Content-Type: application/json
+X-Requested-With: XMLHttpRequest
+Content-Length: 402
+Origin: https://<host-address>
+Connection: keep-alive
+Referer: https://<host-address>/?
+Cookie: last-visited-page=policies; PHPSESSID=b8478d152e2cd764dcf013951842835b
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+"""
+
+"""
+request cookies
+{
+	"Request Cookies": {
+		"last-visited-page": "policies",
+		"PHPSESSID": "b8478d152e2cd764dcf013951842835b"
+	}
+}
+"""
+
+"""
+request payload
+
+{
+    "action":"PanDirect",
+    "method":"run",
+    "data":[
+        "48a6d4530f7393fe26c4777662ede9bb",
+        "ObjectsDirect.completeApplication",
+        [  
+            {
+                "xpathId":"vsys",
+                "vsysName":"Devices",
+                "xpath":"/config/devices/entry[@name='localhost.localdomain']/device-group/entry[@name='Devices']/pre-rulebase/security/rules/entry[@name='test']/application/member",
+                "argumentsAreJSON":true,"query":"web-","useCache":true
+            }
+       ]
+    ],
+    "type":"rpc",
+    "tid":51
+}
+
+"""
+
+"""
+csrf from login page: <input type="hidden" name="_csrf" value="R917FA3141LM266Z63654D083H1915AKF7G4ZV5Q" />
+
+login auth request (cookie generation)
+prot=https:
+server=<host-address>
+authType=init
+challengeCookie=
+_csrf=<generate from login page?>
+user=<user>
+passwd=<password>
+challengePwd=
+ok=Log+In
+"""
