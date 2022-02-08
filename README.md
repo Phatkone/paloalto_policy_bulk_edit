@@ -13,8 +13,8 @@ The following pip packages are required for operation:
 
 
 ## Usage
-Call pan_security_bulk_update.py to execute.  
-Positional argument for the host device is also accepted in hostname or IP address format (I.E. `python3 pan_security_bulk_update.py firewall.local.domain`).
+Call pan_bulk_update.py to execute.  
+Positional argument for the host device is also accepted in hostname or IP address format (I.E. `python3 pan_bulk_update.py firewall.local.domain`).
 The script will prompt through the steps.
 The script will prompt for username and password, from which, it will generate the API key and provide an opportunity to save the key for future use.
 The key is stored in a named file (i.e. `.192-168-0-1` or `.firewall.local.domain`). 
