@@ -13,6 +13,7 @@ GNU GPL License applies.
 
 """
 
+from email.mime import application
 from pan.xapi import PanXapi
 
 def file_exists(file: str) -> bool:
@@ -135,3 +136,87 @@ def get_parent_dgs(xapi: PanXapi, dg: str, dg_stack: dict, response_list: list =
         if dg_stack[dg] in dg_stack.keys():
             response_list = get_parent_dgs(xapi, dg_stack[dg], dg_stack, response_list)
     return response_list
+
+def get_url_categories(xapi: PanXapi, devicegroup: str, panorama: bool = False) -> list:
+    dg_stack = get_device_group_stack(xapi) if panorama else {}
+    dg_list = get_parent_dgs(xapi, devicegroup, dg_stack)
+    categories = []
+    
+    if len(dg_list) > 0 and devicegroup != "":
+        for dg in dg_list:
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/profiles/custom-url-category'.format(dg)
+            xapi.get(xpath)
+            xm = xapi.element_root.find('result')
+            if len(xm):
+                for cat in xm[0]:
+                    categories.append(cat.get('name'))
+    
+    if devicegroup not in dg_list or not panorama:
+        xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/profiles/custom-url-category'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/profiles/custom-url-category'
+        #Get tag list for selection
+        xapi.get(xpath)
+        xm = xapi.element_root.find('result')
+        if len(xm):
+            for cat in xm[0]:
+                categories.append(cat.get('name'))
+    
+    #xpath = '/config/predefined/url-categories'
+    #xapi.get(xpath)
+    xapi.op(cmd="<show><predefined><xpath>/predefined/pan-url-categories</xpath></predefined></show>")
+    xm = xapi.element_root.find('result')
+    if len(xm):
+        for cat in xm[0]:
+            categories.append(cat.get('name'))
+    
+    return categories
+
+def get_applications(xapi: PanXapi, devicegroup: str, panorama: bool = False) -> list:
+    dg_stack = get_device_group_stack(xapi) if panorama else {}
+    dg_list = get_parent_dgs(xapi, devicegroup, dg_stack)
+    applications = []
+    
+    if len(dg_list) > 0 and devicegroup != "":
+        # Applications
+        for dg in dg_list:
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/application'.format(dg)
+            xapi.get(xpath)
+            xm = xapi.element_root.find('result')
+            if len(xm):
+                for app in xm[0]:
+                    applications.append(app.get('name'))
+        # Application Groups
+        for dg in dg_list:
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/application-group'.format(dg)
+            xapi.get(xpath)
+            xm = xapi.element_root.find('result')
+            if len(xm):
+                for app in xm[0]:
+                    applications.append(app.get('name'))
+    
+    if devicegroup not in dg_list or not panorama:
+        # Applications
+        xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/application'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/application'
+        #Get tag list for selection
+        xapi.get(xpath)
+        xm = xapi.element_root.find('result')
+        if len(xm):
+            for app in xm[0]:
+                applications.append(app.get('name'))
+        # Application Groups
+        xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/application-group'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/application-group'
+        #Get tag list for selection
+        xapi.get(xpath)
+        xm = xapi.element_root.find('result')
+        if len(xm):
+            for app in xm[0]:
+                applications.append(app.get('name'))
+    
+    #xpath = '/config/predefined/application'
+    #xapi.get(xpath)
+    xapi.op(cmd="<show><predefined><xpath>/predefined/application</xpath></predefined></show>")
+    xm = xapi.element_root.find('result')
+    if len(xm):
+        for app in xm[0]:
+            applications.append(app.get('name'))
+    
+    return applications

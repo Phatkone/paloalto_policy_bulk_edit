@@ -94,6 +94,8 @@ def main(pan_host: str = None) -> None:
         #f.close()
     except PanXapiError as e:
         print("API Error: {}".format(e))
+        if 'getaddrinfo failed' in e:
+            exit()
         if '403' in str(e) and fw_key is not None:
             # Delete the saved key if an unauthorised result is returned (case of password/key roll over)
             os.remove(key_file)
