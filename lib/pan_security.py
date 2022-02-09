@@ -15,10 +15,13 @@ GNU GPL License applies.
 from pan.xapi import PanXapi
 from time import sleep
 from re import match
+from re import split
 from lib.functions import verify_selection
 from lib.functions import job_status
 from lib.functions import get_device_group_stack
 from lib.functions import get_parent_dgs
+from lib.functions import get_url_categories
+from lib.functions import get_applications
 
 
 
@@ -105,7 +108,7 @@ def add_remove_rule_address(panx : PanXapi, rules: dict, panorama : bool, action
         address = input("Which address would you like to remove?: (Ensure it matches exactly)\n")
 
     new_address_list = {}
-    # Get current zones belonging to the selected rules. these have to be pushed in with the new zone (or without the zones for removal)
+    # Get current addresses belonging to the selected rules. these have to be pushed in with the new address (or without the addresses for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_address_list[rule] = []
@@ -149,22 +152,34 @@ def add_remove_rule_address(panx : PanXapi, rules: dict, panorama : bool, action
             print(panx.status.capitalize())
 
 
-def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "") -> None:
+def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "", applications_list: list = []) -> None:
 
-    print("Which application do you wish to {}:\n enter 'all' or 'any' to set to any.\n".format(action))
+    if len(applications_list) < 1:
+        applications_list = get_applications(panx, devicegroup, panorama)
+
+    print("Which application do you wish to {}:\n enter 'any' to set to any.\n".format(action))
     if action == 'remove':
         print("Note: If all applications are removed from a rule, it will be set to 'any'\n")
-    application = input("> ")
+    applications = split('\s|,', input("> ").replace(', ',' '))
+    #application = input("> ")
+
+    for application in applications:
+        if application.lower() not in applications_list and application != 'any':
+            print("Application '{}' not found. Please try again.".format(application))
+            update_application(panx, rules, panorama, rule_data, action, devicegroup, applications_list)
+            return
+
     new_application_list = {}
     # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_application_list[rule] = []
             for app in rule_data[rule]['application']:
-                if (action == 'add' and app != 'any') or (action == 'remove' and app != application and app.replace('>','&gt;').replace('<','&lt;') != application):
+                if (action == 'add' and app != 'any') or (action == 'remove' and app not in applications and app.replace('>','&gt;').replace('<','&lt;') not in applications):
                     new_application_list[rule].append(app.replace('>','&gt;').replace('<','&lt;'))
-            if action == 'add' and application.replace('>','&gt;').replace('<','&lt;') not in new_application_list[rule]:
-                new_application_list[rule].append(application.replace('>','&gt;').replace('<','&lt;'))
+            for app in applications:
+                if action == 'add' and app.replace('>','&gt;').replace('<','&lt;') not in new_application_list[rule]:
+                    new_application_list[rule].append(app.replace('>','&gt;').replace('<','&lt;'))
 
     
     # Create XML object to push with API call
@@ -184,45 +199,56 @@ def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data 
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/application'.format(devicegroup, rulebase, rule)
-                print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', application, 'to' if action == 'add' else 'from', rule, rulebase))
+                print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=application_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
             xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
-            print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', application, 'to' if action == 'add' else 'from', rule))
+            print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=application_xml[rule])
             print(panx.status.capitalize())
 
 
-def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "") -> None:
+def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "", categories_list: list = []) -> None:
 
-    print("Which category do you wish to {}:\n enter 'all' or 'any' to set to any.\n".format(action))
+    if len(categories_list) < 1:
+        categories_list = get_url_categories(panx, devicegroup, panorama)
+
+    print("Which categories do you wish to {}:\n Separate each entry with a space, enter 'all' or 'any' to set to any.\n".format(action))
     if action == 'remove':
         print("Note: If all categories are removed from a rule, it will be set to 'any'\n")
-    category = input("> ")
+    categories = split('\s|,', input("> ").replace(', ',' '))
+    for category in categories:
+        if category.lower() not in categories_list:
+            print("Category '{}' not found. Please try again.".format(category))
+            update_url_category(panx, rules, panorama, rule_data, action, devicegroup, categories_list)
+            return
+
+
     new_category_list = {}
     # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_category_list[rule] = []
             for cat in rule_data[rule]['category']:
-                if (action == 'add' and cat != 'any') or (action == 'remove' and cat != category and cat.replace('>','&gt;').replace('<','&lt;') != category):
+                if (action == 'add' and cat != 'any') or (action == 'remove' and cat not in categories and cat.replace('>','&gt;').replace('<','&lt;') not in categories):
                     new_category_list[rule].append(cat.replace('>','&gt;').replace('<','&lt;'))
-            if action == 'add' and category.replace('>','&gt;').replace('<','&lt;') not in new_category_list[rule]:
-                new_category_list[rule].append(category.replace('>','&gt;').replace('<','&lt;'))
+            for cat in categories:
+                if action == 'add' and cat.replace('>','&gt;').replace('<','&lt;') not in new_category_list[rule]:
+                    new_category_list[rule].append(cat.replace('>','&gt;').replace('<','&lt;'))
 
     
     # Create XML object to push with API call
     category_xml = {}
-    for rule, url_cateogry in new_category_list.items():
+    for rule, url_category in new_category_list.items():
         category_xml[rule] = "<category>"
-        if len(url_cateogry) == 0:
+        if len(url_category) == 0:
             category_xml[rule] += '<member>any</member>'
-        if (category in ['any','all']):
+        if (categories in ['any','all']):
             category_xml[rule] += '<member>any</member>'
         else:
-            for cat in url_cateogry:
+            for cat in url_category:
                 category_xml[rule] += '<member>{}</member>'.format(cat)
         category_xml[rule] += "</category>"
         
@@ -230,13 +256,13 @@ def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/category'.format(devicegroup, rulebase, rule)
-                print("{} category(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule, rulebase))
+                print("{} category(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(categories), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=category_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
             xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
-            print("{} category(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', category, 'to' if action == 'add' else 'from', rule))
+            print("{} category(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(categories), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=category_xml[rule])
             print(panx.status.capitalize())
 
