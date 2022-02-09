@@ -13,19 +13,18 @@ GNU GPL License applies.
 
 """
 from pan.xapi import PanXapi
-from time import sleep
 from re import match
 from re import split
 from lib.functions import verify_selection
-from lib.functions import job_status
 from lib.functions import get_device_group_stack
 from lib.functions import get_parent_dgs
 from lib.functions import get_url_categories
 from lib.functions import get_applications
+from lib.functions import commit
 
 
 
-def add_remove_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
+def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
     zones = {}
     # Get template if Panorama
     if panorama: 
@@ -95,7 +94,7 @@ def add_remove_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action :
             print(panx.status.capitalize())
 
 
-def add_remove_rule_address(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
+def update_rule_address(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
     if action == 'add':
         address = input("What address would you like to add?: (Use CIDR Notation I.E. 10.0.0.0/8)\n")
         if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address):
@@ -152,7 +151,55 @@ def add_remove_rule_address(panx : PanXapi, rules: dict, panorama : bool, action
             print(panx.status.capitalize())
 
 
-def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "", applications_list: list = []) -> None:
+def update_source_user(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, action: str, devicegroup: str = "") -> None:
+    print("Which source-user do you wish to {}:\n enter 'any', 'unknown', 'known-user', 'pre-logon' or enter a string.\n".format(action))
+    if action == 'remove':
+        print("Note: If all source-users are removed from a rule, it will be set to 'any'\n")
+    source_user = input("> ")
+
+    new_source_user_list = {}
+    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    for rules_list in rules.values():
+        for rule in rules_list:
+            new_source_user_list[rule] = []
+            for su in rule_data[rule]['source-user']:
+                if (action == 'add' and su != 'any') or (action == 'remove' and su not in source_user and su.replace('>','&gt;').replace('<','&lt;') not in source_user):
+                    new_source_user_list[rule].append(su.replace('>','&gt;').replace('<','&lt;'))
+            if action == 'add' and source_user.replace('>','&gt;').replace('<','&lt;') not in new_source_user_list[rule]:
+                new_source_user_list[rule].append(source_user.replace('>','&gt;').replace('<','&lt;'))
+
+    
+    # Create XML object to push with API call
+    source_user_xml = {}
+    for rule, su in new_source_user_list.items():
+        source_user_xml[rule] = "<source-user>"
+        if len(su) == 0:
+            source_user_xml[rule] += '<member>any</member>'
+        if (source_user in ['any','pre-logon','unknown','known-user'] and action == 'add'):
+            source_user_xml[rule] += '<member>{}</member>'.format(source_user)
+        if (action == 'remove' and source_user == 'all'):
+            source_user_xml[rule] += '<member>any</member>'
+        else:
+            for s in su:
+                source_user_xml[rule] += '<member>{}</member>'.format(s)
+        source_user_xml[rule] += "</source-user>"
+        
+    if panorama:
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/source-user'.format(devicegroup, rulebase, rule)
+                print("{} source-user: {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', source_user, 'to' if action == 'add' else 'from', rule, rulebase))
+                panx.edit(xpath=xpath,element=source_user_xml[rule])
+                print(panx.status.capitalize())
+    else:
+        for rule in rules['devicelocal']:
+            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/source-user'.format(rule)
+            print("{} source-user: {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', source_user, 'to' if action == 'add' else 'from', rule))
+            panx.edit(xpath=xpath,element=source_user_xml[rule])
+            print(panx.status.capitalize())
+
+
+def update_application(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, action: str, devicegroup: str = "", applications_list: list = []) -> None:
 
     if len(applications_list) < 1:
         applications_list = get_applications(panx, devicegroup, panorama)
@@ -161,7 +208,6 @@ def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data 
     if action == 'remove':
         print("Note: If all applications are removed from a rule, it will be set to 'any'\n")
     applications = split('\s|,', input("> ").replace(', ',' '))
-    #application = input("> ")
 
     for application in applications:
         if application.lower() not in applications_list and application != 'any':
@@ -170,7 +216,7 @@ def update_application(panx : PanXapi, rules : dict, panorama : bool, rule_data 
             return
 
     new_application_list = {}
-    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    # Get current applications belonging to the selected rules. these have to be pushed in with the new applications (or without the applications for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_application_list[rule] = []
@@ -227,7 +273,7 @@ def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data
 
 
     new_category_list = {}
-    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
+    # Get current url cateogries belonging to the selected rules. these have to be pushed in with the new url cateogries (or without the url cateogries for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_category_list[rule] = []
@@ -267,7 +313,7 @@ def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data
             print(panx.status.capitalize())
 
 
-def add_remove_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action : str, start_end : str, devicegroup: str = "") -> None:
+def update_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action : str, start_end : str, devicegroup: str = "") -> None:
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -281,7 +327,7 @@ def add_remove_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, act
             print(panx.status.capitalize())
 
 
-def add_remove_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
     if action == 'remove':
         if panorama:
             for rulebase, rulelist in rules.items():
@@ -340,7 +386,7 @@ def add_remove_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool
                 print(panx.status.capitalize())
 
 
-def add_remove_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
     tags = {}
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
@@ -416,7 +462,7 @@ def add_remove_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action :
             print(panx.status.capitalize())
 
 
-def add_remove_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
     tags = {}
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
@@ -594,7 +640,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
                 print(panx.status.capitalize())
 
 
-def set_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action : str, devicegroup : str = "") -> None:
+def update_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action : str, devicegroup : str = "") -> None:
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -608,19 +654,21 @@ def set_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action :
 
 def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
     action = verify_selection({
-        1: 'Append rule names',
-        2: 'Prepend rule names',
-        3: 'Left trim rule names',
-        4: 'Right trim rule names'
+        1: 'Append rule description',
+        2: 'Prepend rule description',
+        3: 'Left trim rule description',
+        4: 'Right trim rule description',
+        5: 'Replace rule description'
     }, "Which action would you like to take?")
-    if action in [1,2]: #Append/Prepend
-        str_add = input("What string would you like to add?\n> ")
+    if action in [1,2,5]: #Append/Prepend
+        str_add = input("What string would you like to add?\n> " if action in [1,2] else "What string would you like to set?\n> ")
 
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
                     xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
                     new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
+                    new_des = str_add if action == 5 else new_des
                     if len(new_des) > 1023:
                         print("Description length is too long. Skipping for {}.".format(rule))
                         continue
@@ -631,6 +679,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
             for rule in rules['devicelocal']:
                 xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
                 new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
+                new_des = str_add if action == 5 else new_des
                 if len(new_des) > 1023:
                     print("Name length is too long. Skipping for {}.".format(rule))
                     continue
@@ -799,6 +848,24 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
             print(panx.status.capitalize())
 
 
+def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+    profile_type = verify_selection({
+        1: "Profiles",
+        2: "Group",
+        3: "None (Remove)"
+        }, "Set Profile Type")
+    if profile_type == 1:
+        # Get profile selection for each type and set accordingly.
+        pass
+    if profile_type == 2:
+        # Get profile groups and set accordingly.
+        pass
+    if profile_type == 3:
+        # Set profile to none.
+        pass
+    pass
+
+
 def main(panx: PanXapi = None, panorama: str = "") -> None:
 
     actions = {
@@ -808,16 +875,16 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
         4: 'Disable Rule(s)',
         5: 'Rename Rule(s)',
         6: 'Change Rule Action',
-        7: 'Description',
-        8: 'Update Service(s)' #,
-        #8:'Update Profiles' to add later
+        7: 'Update Description',
+        8: 'Update Service(s)',
+        9: 'Update Profiles (Not yet functional)'
     }
     add_delete_actions = {
         1: 'Source Zone',
         2: 'Destination Zone',
         3: 'Source Address',
         4: 'Destination Address',
-        5: 'Source User (Not Yet Functional)',   # to add later
+        5: 'Source User',
         6: 'Application',
         7: 'URL Category',
         8: 'Log at Session Start',
@@ -922,9 +989,25 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
             rule_data[rule]['group-tag'] = r['xml'].find('group-tag').text
 
         if r['xml'].find('description') is not None:
-            rule_data[rule]['description'] = r['xml'].find('description').text
+            rule_data[rule]['description'] = r['xml'].find('description').text if r['xml'].find('description').text is not None else ""
         else:
             rule_data[rule]['description'] = ""
+
+        rule_data[rule]['profile-setting'] = {}
+        if r['xml'].find('profile-setting') is not None:
+            if r['xml'].find('profile-setting').find('profiles') is not None:
+                rule_data[rule]['profile-setting']['type'] = 'profiles'
+                rule_data[rule]['profile-setting']['virus'] = r['xml'].find('profile-setting').find('profiles').find('virus')[0].text if r['xml'].find('profile-setting').find('profiles').find('virus') is not None else "None"
+                rule_data[rule]['profile-setting']['url-filtering'] = r['xml'].find('profile-setting').find('profiles').find('url-filtering')[0].text if r['xml'].find('profile-setting').find('profiles').find('url-filtering') is not None else "None"
+                rule_data[rule]['profile-setting']['data-filtering'] = r['xml'].find('profile-setting').find('profiles').find('data-filtering')[0].text if r['xml'].find('profile-setting').find('profiles').find('data-filtering') is not None else "None"
+                rule_data[rule]['profile-setting']['file-blocking'] = r['xml'].find('profile-setting').find('profiles').find('file-blocking')[0].text if r['xml'].find('profile-setting').find('profiles').find('file-blocking') is not None else "None"
+                rule_data[rule]['profile-setting']['spyware'] = r['xml'].find('profile-setting').find('profiles').find('spyware')[0].text if r['xml'].find('profile-setting').find('profiles').find('spyware') is not None else "None"
+                rule_data[rule]['profile-setting']['vulnerability'] = r['xml'].find('profile-setting').find('profiles').find('vulnerability')[0].text if r['xml'].find('profile-setting').find('profiles').find('vulnerability') is not None else "None"
+                rule_data[rule]['profile-setting']['wildfire-analysis'] = r['xml'].find('profile-setting').find('profiles').find('wildfire-analysis')[0].text if r['xml'].find('profile-setting').find('profiles').find('wildfire-analysis') is not None else "None"
+                
+            if r['xml'].find('profile-setting').find('group') is not None:
+                rule_data[rule]['profile-setting']['type'] = 'group'
+                rule_data[rule]['profile-setting']['group'] = r['xml'].find('profile-setting').find('group')[0].text if len(r['xml'].find('profile-setting').find('group')) > 0 else "None"
 
         rule_data[rule]['to'] = []
         for z in to_zones:
@@ -1002,11 +1085,15 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
     if get_task == 1:
         # Source / Destination Zone
         if sub_task in [1,2]:
-            add_remove_rule_zones(panx, rules, panorama, 'add', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
+            update_rule_zones(panx, rules, panorama, 'add', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
         
         # Source / Destination Address
         if sub_task in [3,4]:
-            add_remove_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+            update_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+
+        # Source User
+        if sub_task == 5:
+            update_source_user(panx, rules, panorama, rule_data, 'add', devicegroup)
 
         # Applications
         if sub_task == 6:
@@ -1018,29 +1105,33 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
 
         # log-end / log-start
         if sub_task in [8,9]:
-            add_remove_start_end_logging(panx, rules, panorama, 'yes', 'start' if sub_task == 8 else 'end', devicegroup)
+            update_start_end_logging(panx, rules, panorama, 'yes', 'start' if sub_task == 8 else 'end', devicegroup)
 
         # Log Forwarding
         if sub_task == 10:
-            add_remove_rule_log_forwarding(panx,rules,panorama,'add',rule_data, devicegroup)
+            update_rule_log_forwarding(panx,rules,panorama,'add',rule_data, devicegroup)
         
         # Tags
         if sub_task == 11:
-            add_remove_rule_tags(panx,rules,panorama,'add',rule_data, devicegroup)
+            update_rule_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
         # Group by Tags
         if sub_task == 12:
-            add_remove_rule_group_by_tags(panx,rules,panorama,'add',rule_data, devicegroup)
+            update_rule_group_by_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
     # Remove From Security Policies
     if get_task == 2: 
         # Source / Destination Zone
         if sub_task in [1,2]:
-            add_remove_rule_zones(panx, rules, panorama, 'remove', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
+            update_rule_zones(panx, rules, panorama, 'remove', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
         
         # Source / Destination Address
         if sub_task in [3,4]:
-            add_remove_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+            update_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+
+        # Source User
+        if sub_task == 5:
+            update_source_user(panx, rules, panorama, rule_data, 'remove', devicegroup)
 
         # Applications
         if sub_task == 6:
@@ -1052,19 +1143,19 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
 
         # log-end / log-start
         if sub_task in [8,9]:
-            add_remove_start_end_logging(panx, rules, panorama, 'no', 'start' if sub_task == 8 else 'end', devicegroup)
+            update_start_end_logging(panx, rules, panorama, 'no', 'start' if sub_task == 8 else 'end', devicegroup)
             
         # Log Forwarding
         if sub_task == 10:
-            add_remove_rule_log_forwarding(panx,rules,panorama,'remove',rule_data, devicegroup)
+            update_rule_log_forwarding(panx,rules,panorama,'remove',rule_data, devicegroup)
         
         # Tags
         if sub_task == 11:
-            add_remove_rule_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
+            update_rule_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
         # Group by Tags
         if sub_task == 12:
-            add_remove_rule_group_by_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
+            update_rule_group_by_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
     # Enable Rules
     if get_task == 3:
@@ -1082,7 +1173,7 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
     if get_task == 6:
         actions = {1: 'Allow', 2: 'Deny', 3: 'Drop', 4: 'Reset Client', 5: 'Reset Server', 6: 'Reset Both'}
         rule_action = verify_selection(actions, "What policy action to set?", False, True)
-        set_rule_action(panx, rules, panorama, rule_action, devicegroup)
+        update_rule_action(panx, rules, panorama, rule_action, devicegroup)
     
     # Rule Description
     if get_task == 7:
@@ -1091,55 +1182,17 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
     # Services
     if get_task == 8:
         update_service(panx, rules, panorama, rule_data, devicegroup)
+    
+    # Profiles
+    if get_task == 9:
+        update_profile(panx, rules, panorama, rule_data, devicegroup)
 
     # Commit and Push
     do_commit = input("Would you like to commit? (Y/N):\n Note. this will push to all devices in selected the device group.\n ") if panorama else input("Would you like to commit? (Y/N):\n ")
     
     if len(do_commit) >= 1 and do_commit[0].lower() == 'y':
         # Get Commit Description
-        commit_description = input("\n\nCommit description?: \n ")
-        
-        print("Committing...")
-
-        # Commit to Firewall / Panorama
-        panx.commit(cmd='<commit>{}</commit>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else ""), sync=True, interval=2)
-        
-        # Push policies down to firewalls in chosen device group.
-        if panorama:
-            if panx.status == 'success':
-                print("Commit Successful, Pushing to devices...")
-                panx.commit(cmd='<commit-all><shared-policy>{}<device-group><entry name="{}"/></device-group></shared-policy></commit-all>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else "", devicegroup), action='all')
-    
-        # Find policy push job status'
-        if panx.status == 'success' and panorama:
-            job = panx.element_root[0].find('job').text 
-            status, results = job_status(panx, job)
-            complete = False
-            print("Job #{} Committed".format(job))
-            count = 1
-            while (complete != True and count <= 5):
-                if status == 'success':
-                    if 'PEND' in results.values():
-                        print("Device push still in progress. Checking again in 30 seconds")
-                        sleep(30)
-                        status, results = job_status(panx, job)
-                    else:
-                        complete = True
-                        print("Commit Complete!")
-                count = count + 1   
-            res = "\n"+ "Results".center(63) + "\n" + "".center(63,"*") +"\n|" 
-            res += "Device".center(30) + "|" + "Status".center(30) + "|\n|" + " ".center(30) + "|" + " ".center(30) + "|\n"
-            for device, result in results.items():
-                res += "|" + device.center(30) + "|" + result.center(30) + "|\n"
-            res += "".center(63, "*")
-            print(res)
-        elif panx.status == 'success':
-            job = panx.element_root[0].find('job')
-            job_id = job.find('id').text
-            job_result = job.find('result').text
-            print("Job #{} Completed:".format(job_id), job_result)
-        else:
-            print('Failed to commit: {}'.format(panx.xml_document))
+        commit(panx, panorama, devicegroup)
 
 
 if __name__ == '__main__':

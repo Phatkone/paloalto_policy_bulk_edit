@@ -113,6 +113,52 @@ def job_status(xapi: PanXapi, job: str) -> tuple:
 	return xapi.status, results
 
 
+def commit(panx: PanXapi, panorama: bool = False, devicegroup: str = "") -> None:
+    from time import sleep
+
+    commit_description = input("\n\nCommit description?: \n ")
+    print("Committing...")
+    # Commit to Firewall / Panorama
+    panx.commit(cmd='<commit>{}</commit>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else ""), sync=True, interval=2)
+    
+    # Push policies down to firewalls in chosen device group.
+    if panorama:
+        if panx.status == 'success':
+            print("Commit Successful, Pushing to devices...")
+            panx.commit(cmd='<commit-all><shared-policy>{}<device-group><entry name="{}"/></device-group></shared-policy></commit-all>'.format("<description>{}</description>".format(commit_description) if len(commit_description) > 0 else "", devicegroup), action='all')
+
+    # Find policy push job status'
+    if panx.status == 'success' and panorama:
+        job = panx.element_root[0].find('job').text 
+        status, results = job_status(panx, job)
+        complete = False
+        print("Job #{} Committed".format(job))
+        count = 1
+        while (complete != True and count <= 5):
+            if status == 'success':
+                if 'PEND' in results.values():
+                    print("Device push still in progress. Checking again in 30 seconds")
+                    sleep(30)
+                    status, results = job_status(panx, job)
+                else:
+                    complete = True
+                    print("Commit Complete!")
+            count = count + 1   
+        res = "\n"+ "Results".center(63) + "\n" + "".center(63,"*") +"\n|" 
+        res += "Device".center(30) + "|" + "Status".center(30) + "|\n|" + " ".center(30) + "|" + " ".center(30) + "|\n"
+        for device, result in results.items():
+            res += "|" + device.center(30) + "|" + result.center(30) + "|\n"
+        res += "".center(63, "*")
+        print(res)
+    elif panx.status == 'success':
+        job = panx.element_root[0].find('job')
+        job_id = job.find('id').text
+        job_result = job.find('result').text
+        print("Job #{} Completed:".format(job_id), job_result)
+    else:
+        print('Failed to commit: {}'.format(panx.xml_document))
+
+
 def get_device_group_stack(xapi: PanXapi, dg_stack: dict = {}) -> dict:
     xpath = '/config/readonly/devices/entry[@name=\'localhost.localdomain\']/device-group'
     xapi.get(xpath=xpath)

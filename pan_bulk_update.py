@@ -21,7 +21,7 @@ import binascii
 import base64
 import os
 import sys
-from lib import pan_security
+import lib.pan_security as pan_security
 from lib.functions import file_exists
 
 
