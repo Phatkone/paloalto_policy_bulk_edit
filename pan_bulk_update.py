@@ -22,7 +22,8 @@ import base64
 import os
 import sys
 import lib.pan_security as pan_security
-from lib.functions import file_exists
+from lib.common import file_exists
+
 
 
 def main(pan_host: str = None) -> None:

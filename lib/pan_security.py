@@ -15,13 +15,17 @@ GNU GPL License applies.
 from pan.xapi import PanXapi
 from re import match
 from re import split
-from lib.functions import verify_selection
-from lib.functions import get_device_group_stack
-from lib.functions import get_parent_dgs
-from lib.functions import get_url_categories
-from lib.functions import get_applications
-from lib.functions import commit
-
+from lib.common import verify_selection
+from lib.common import get_device_group_stack
+from lib.common import get_parent_dgs
+from lib.common import get_url_categories
+from lib.common import get_applications
+from lib.common import commit
+from lib.common import get_profiles
+from lib.common import list_to_dict
+from lib.common import panorama_xpath_objects_base
+from lib.common import panorama_xpath_templates_base
+from lib.common import device_xpath_base
 
 
 def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
@@ -37,9 +41,9 @@ def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str
             count += 1
         template = verify_selection(templates, "Which Template does the zone belong to?:", False, True)
         del templates_xml, count, templates      
-        xpath = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/zone'.format(template)
+        xpath = panorama_xpath_templates_base.format(template) + 'zone'
     else:
-        xpath = '/config/devices/entry/vsys/entry/zone'
+        xpath = device_xpath_base + 'zone'
 
     #Get Zones list for selection
     panx.get(xpath)
@@ -82,13 +86,13 @@ def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/{}'.format(devicegroup, rulebase, rule, source_dest)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/{}'.format(rulebase, rule, source_dest)
                 print("{} zone(s): {} {} rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(zone_selection.values()), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=zone_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
             print("{} zone(s): {} {} rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(zone_selection.values()), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=zone_xml[rule])
             print(panx.status.capitalize())
@@ -139,13 +143,13 @@ def update_rule_address(panx : PanXapi, rules: dict, panorama : bool, action : s
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/{}'.format(devicegroup, rulebase, rule, source_dest)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/{}'.format(rulebase, rule, source_dest)
                 print("{} address: {} {} rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else "Removing", address, 'to' if action == 'add' else "from", rule, rulebase))
                 panx.edit(xpath=xpath,element=addr_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
             print("{} address: {} {} rule: '{}'".format('Adding' if action == 'add' else "Removing", address, 'to' if action == 'add' else "from", rule))
             panx.edit(xpath=xpath,element=addr_xml[rule])
             print(panx.status.capitalize())
@@ -187,13 +191,13 @@ def update_source_user(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/source-user'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/source-user'.format(rulebase, rule)
                 print("{} source-user: {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', source_user, 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=source_user_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/source-user'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/source-user'.format(rule)
             print("{} source-user: {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', source_user, 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=source_user_xml[rule])
             print(panx.status.capitalize())
@@ -244,13 +248,13 @@ def update_application(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/application'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/application'.format(rulebase, rule)
                 print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=application_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
             print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=application_xml[rule])
             print(panx.status.capitalize())
@@ -301,13 +305,13 @@ def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/category'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/category'.format(rulebase, rule)
                 print("{} category(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(categories), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=category_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/category'.format(rule)
             print("{} category(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(categories), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=category_xml[rule])
             print(panx.status.capitalize())
@@ -318,12 +322,12 @@ def update_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action 
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 print("{} log-{} for rule: '{}' in rulebase: {}".format('Enabling' if action == 'yes' else 'Disabling', start_end, rule, rulebase))
-                panx.set(xpath='/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase,rule),element='<log-{}>{}</log-{}>'.format(start_end, action, start_end))
+                panx.set(xpath=panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase,rule),element='<log-{}>{}</log-{}>'.format(start_end, action, start_end))
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
             print("{} log-{} for rule: '{}'".format('Enabling' if action == 'yes' else 'Disabling', start_end, rule))
-            panx.set(xpath='/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule),element='<log-{}>{}</log-{}>'.format(start_end, action, start_end))
+            panx.set(xpath=device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule),element='<log-{}>{}</log-{}>'.format(start_end, action, start_end))
             print(panx.status.capitalize())
 
 
@@ -332,7 +336,7 @@ def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, ac
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/log-setting'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/log-setting'.format(rulebase, rule)
                     print("Removing Log Forwarding for rule: {} in rulebase {} of device group: {}".format(rule, rulebase, devicegroup))
                     panx.delete(xpath)
                     print(panx.status.capitalize())
@@ -344,7 +348,7 @@ def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, ac
                 print(panx.status.capitalize())
     else: # Add log forwarder
         if panorama:
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/log-settings/profiles'.format(devicegroup)
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'log-settings/profiles'.format(devicegroup)
             panx.get(xpath)
             xm = panx.element_root.find('result')
             log_forwarders = {}
@@ -374,7 +378,7 @@ def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, ac
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                     print("Setting Log Forwarding to {} for rule: {} in rulebase {} of device group: {}".format(log_forwarder, rule, rulebase, devicegroup))
                     panx.set(xpath,element='<log-setting>{}</log-setting>'.format(log_forwarder))
                     print(panx.status.capitalize())
@@ -393,7 +397,7 @@ def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str
     
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
@@ -403,7 +407,7 @@ def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str
                     count+=1
     
     if devicegroup not in dg_list or not panorama:
-        xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/tag'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/tag'
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(devicegroup) if panorama else device_xpath_base + 'tag'
         #Get tag list for selection
         panx.get(xpath)
         xm = panx.element_root.find('result')
@@ -450,13 +454,13 @@ def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/tag'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/tag'.format(rulebase, rule)
                 print("{} tag(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(tag_selection.values()), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=tag_xml[rule])
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/tag'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/tag'.format(rule)
             print("{} tag(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(tag_selection.values()), 'to' if action == 'add' else 'from', rule))
             panx.edit(xpath=xpath,element=tag_xml[rule])
             print(panx.status.capitalize())
@@ -470,7 +474,7 @@ def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, act
     ### need to do this cleanly....
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
@@ -480,7 +484,7 @@ def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, act
                     count+=1
     
     if devicegroup not in dg_list or not panorama:
-        xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/tag'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/tag'
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(devicegroup) if panorama else device_xpath_base + 'tag'
         #Get tag list for selection
         panx.get(xpath)
         xm = panx.element_root.find('result')
@@ -509,7 +513,7 @@ def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, act
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/group-tag'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/group-tag'.format(rulebase, rule)
                 print("{} {}  rule: '{}' in rulebase: {}".format('Adding {}'.format(tag) if action == 'add' else 'Removing tag', 'to' if action == 'add' else 'from', rule, rulebase))
                 if action == 'add':
                     panx.edit(xpath=xpath, element=tag_xml)
@@ -518,7 +522,7 @@ def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, act
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/group-tag'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/group-tag'.format(rule)
             print("{} {}  rule: '{}'".format('Adding {}'.format(tag) if action == 'add' else 'Removing tag', 'to' if action == 'add' else 'from', rule))
             if action == 'add':
                 panx.edit(xpath=xpath, element=tag_xml)
@@ -532,12 +536,12 @@ def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : st
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 print("{} rule: '{}' in rulebase: {}".format('Enabling' if action == 'enable' else 'Disabling', rule, rulebase))
-                panx.set(xpath='/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase,rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
+                panx.set(xpath=panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase,rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
             print("{} rule: '{}'".format('Enabling' if action == 'enable' else 'Disabling', rule))
-            panx.set(xpath='/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
+            panx.set(xpath=device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule), element='<disabled>{}</disabled>'.format('no' if action == 'enable' else 'yes'))
             print(panx.status.capitalize())
 
 
@@ -565,7 +569,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                     new_name = rule+str_add if action == 1 else str_add+rule
                     if len(new_name) > 63:
                         print("Name length is too long. Skipping for {}.".format(rule))
@@ -581,7 +585,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
                     print(panx.status.capitalize())
         else:
             for rule in rules['devicelocal']:
-                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
                 new_name = rule+str_add if action == 1 else str_add+rule
                 if len(new_name) > 63:
                     print("Name length is too long. Skipping for {}.".format(rule))
@@ -602,7 +606,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                     if action == 3:
                         new_name = rule[trimlen:] if rule[0:trimlen] == str_trim else rule
                     if action == 4:
@@ -621,7 +625,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
                     print(panx.status.capitalize())
         else:
             for rule in rules['devicelocal']:
-                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
                 if action == 3:
                     new_name = rule[trimlen:] if rule[0:trimlen] == str_trim else rule
                 if action == 4:
@@ -644,11 +648,11 @@ def update_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_actio
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                 panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
             panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
                 
 
@@ -666,7 +670,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                     new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
                     new_des = str_add if action == 5 else new_des
                     if len(new_des) > 1023:
@@ -677,7 +681,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
                     print(panx.status.capitalize())
         else:
             for rule in rules['devicelocal']:
-                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
                 new_des = rule_data[rule]['description']+str_add if action == 1 else str_add+rule_data[rule]['description']
                 new_des = str_add if action == 5 else new_des
                 if len(new_des) > 1023:
@@ -693,7 +697,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
         if panorama:
             for rulebase, rulelist in rules.items():
                 for rule in rulelist:
-                    xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']'.format(devicegroup, rulebase, rule)
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
                     if action == 3:
                         new_des = rule_data[rule]['description'][trimlen:] if rule_data[rule]['description'][0:trimlen] == str_trim else rule_data[rule]['description']
                     if action == 4:
@@ -706,7 +710,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
                     print(panx.status.capitalize())
         else:
             for rule in rules['devicelocal']:
-                xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
                 if action == 3:
                     new_des = rule_data[rule]['description'][trimlen:] if rule_data[rule]['description'][0:trimlen] == str_trim else rule_data[rule]['description']
                 if action == 4:
@@ -738,7 +742,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
         if len(dg_list) > 0 and devicegroup != "":
             for dg in dg_list:
                 #Get service list for selection
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service'.format(dg)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(dg)
                 panx.get(xpath)
                 xm = panx.element_root.find('result')
                 if len(xm):
@@ -746,7 +750,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
                         services[count] = service.get('name')
                         count+=1
                 #Get service groups list for selection
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service-group'.format(dg)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(dg)
                 panx.get(xpath)
                 xm = panx.element_root.find('result')
                 if len(xm):
@@ -756,7 +760,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
         
         if devicegroup not in dg_list or not panorama:
             #Get service list for selection
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/service'
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(devicegroup) if panorama else device_xpath_base + 'service'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             if len(xm):
@@ -764,7 +768,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
                     services[count] = service.get('name')
                     count+=1
             #Get service groups list for selection
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/service-group'.format(devicegroup) if panorama else '/config/devices/entry/vsys/entry/service-group'
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(devicegroup) if panorama else device_xpath_base + 'service-group'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             if len(xm):
@@ -826,7 +830,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/{}/security/rules/entry[@name=\'{}\']/service'.format(devicegroup, rulebase, rule)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/service'.format(rulebase, rule)
                 if action in [1,2]:
                     print("{} service(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 1 else 'Removing', " ".join(service_selection), 'to' if action == 1 else 'from', rule, rulebase))
                 elif action == 3:
@@ -837,7 +841,7 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
                 print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules/entry[@name=\'{}\']/service'.format(rule)
+            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/service'.format(rule)
             if action in [1,2]:
                 print("{} service(s): {} {}  rule: '{}'".format('Adding' if action == 1 else 'Removing', " ".join(service_selection), 'to' if action == 1 else 'from', rule))
             elif action == 3:
@@ -850,20 +854,75 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
 
 def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
     profile_type = verify_selection({
-        1: "Profiles",
-        2: "Group",
-        3: "None (Remove)"
-        }, "Set Profile Type")
-    if profile_type == 1:
+        1: "All Profiles",
+        2: "Single Profile",
+        3: "Group",
+        4: "Remove Group / All Profiles",
+        5: "Remove Single Profile"
+        }, "Which action would you like to take?\n")
+    profile_types = [
+        'virus',
+        'vulnerability',
+        'spyware',
+        'url-filtering',
+        'file-blocking',
+        'data-filtering',
+        'wildfire-analysis'
+        ]
+    if profile_type in [1,2]:
         # Get profile selection for each type and set accordingly.
-        pass
-    if profile_type == 2:
-        # Get profile groups and set accordingly.
-        pass
+        profiles = get_profiles(panx, panorama, devicegroup, 'all-profiles')
+        profile_selection = {}
+        if profile_type == 1:
+            for profile in profile_types:
+                profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:\n".format(profile), False, True, True)
+        else:
+            profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to update?\n", False, True)
+            profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:\n".format(profile), False, True)
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                if rule_data[rule]['profile-setting']['type'] in [None,'profiles']:
+                    for profile, selection in profile_selection.items():
+                        xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting/profiles/{}'.format(rulebase, rule, profile) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting/profiles/{}'.format(rule, profile)
+                        panx.edit(xpath=xpath, element="<{}><member>{}</member></{}>".format(profile, selection, profile))
+                        print("Setting {} profile to {} for {} in {}".format(profile, selection, rule, rulebase) if panorama else "Setting {} profile to {} for {} rule".format(profile, selection, rule))
+                else:
+                    print("Rule: {} is configured for profile-group. Please verify and change manually.\n Skipping...".format(rule))
+
     if profile_type == 3:
-        # Set profile to none.
-        pass
-    pass
+        # Get profile groups and set accordingly.
+        profiles = get_profiles(panx, panorama, devicegroup, 'groups')
+        selection = verify_selection(list_to_dict(profiles, 1), "Which profile group would you like to set?\n", False, True)
+
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                if rule_data[rule]['profile-setting']['type'] == 'profiles':
+                    xpath = xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting/profiles'.format(rulebase, rule) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting/profiles'.format(rule)
+                    panx.delete(xpath)
+                    print("Removing existing profiles from {} in {}".format(rule, rulebase) if panorama else "Removing existing profiles from {}".format(rule))
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting'.format(rulebase, rule) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting'.format(rule)
+                panx.set(xpath, element="<group><member>{}</member></group>".format(selection))
+                print("Setting profile group to {} for {} in {}".format(rule, rulebase) if panorama else "Setting profile group to {} for {}".format(rule))
+        
+    if profile_type == 4:
+        # Remove all profiles from rule.
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                xpath = xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting'.format(rulebase, rule) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting'.format(rule)
+                panx.delete(xpath)
+                print("Removing profiles from {} in {}".format(rule, rulebase) if panorama else "Removing profiles from {}".format(rule))
+        
+    if profile_type == 5:
+        # Remove single profile from rule.
+        profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to remove?\n", False, True)
+        for rulebase, rulelist in rules.items():
+            for rule in rulelist:
+                if rule_data[rule]['profile-setting']['type'] == 'profiles':
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting/profiles/{}'.format(rulebase, rule,profile) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting/profiles/{}'.format(rule, profile)
+                    panx.delete(xpath)
+                    print("Removing {} profile from {} in {}".format(profile, rule, rulebase) if panorama else "Removing {} profile from {}".format(profile, rule))
+                else:
+                    print("Rule {} in rulebase {} is not configured for profiles.\n Skipping...".format(rule, rulebase) if panorama else "Rule {} is not configured for profiles.\n Skipping...".format(rule))
 
 
 def main(panx: PanXapi = None, panorama: str = "") -> None:
@@ -877,7 +936,7 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
         6: 'Change Rule Action',
         7: 'Update Description',
         8: 'Update Service(s)',
-        9: 'Update Profiles (Not yet functional)'
+        9: 'Update Profiles'
     }
     add_delete_actions = {
         1: 'Source Zone',
@@ -916,7 +975,7 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
     if panorama:        
         xpath = '/config/devices/entry/device-group/entry[@name="{}"]'.format(devicegroup)
     else:
-        xpath = '/config/devices/entry/vsys/entry/rulebase/security/rules'
+        xpath = device_xpath_base + 'rulebase/security/rules'
 
     panx.get(xpath)
     xm = panx.element_root.find('result')
@@ -1008,6 +1067,9 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
             if r['xml'].find('profile-setting').find('group') is not None:
                 rule_data[rule]['profile-setting']['type'] = 'group'
                 rule_data[rule]['profile-setting']['group'] = r['xml'].find('profile-setting').find('group')[0].text if len(r['xml'].find('profile-setting').find('group')) > 0 else "None"
+
+        else:
+            rule_data[rule]['profile-setting']['type'] = None
 
         rule_data[rule]['to'] = []
         for z in to_zones:

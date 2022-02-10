@@ -13,8 +13,15 @@ GNU GPL License applies.
 
 """
 
-from email.mime import application
 from pan.xapi import PanXapi
+
+device_xpath_base = '/config/devices/entry/vsys/entry/'
+panorama_xpath_objects_base = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/'
+panorama_xpath_templates_base = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/'
+
+def list_to_dict(l: list, start: int = 1):
+    return dict(zip(range(start, len(l) + start), l))
+
 
 def file_exists(file: str) -> bool:
     try:
@@ -40,11 +47,13 @@ def get_selection(d: dict, s: str, r: bool = False) -> str:
     return input("> ")
 
 
-def verify_selection(d: dict, s: str, is_range: bool = False, return_values: bool = False) -> ( dict | list | str):
+def verify_selection(d: dict, s: str, is_range: bool = False, return_values: bool = False, continue_on_fail: bool = False) -> (dict | list | str):
     valid_option = False
     if len(d) < 1:
         print("{}\n Oops. No options found.".format(s))
-        exit(-1)
+        if not continue_on_fail:
+            exit(-1)
+        return
     if is_range:
         ret = {}
     else:
@@ -206,7 +215,7 @@ def get_url_categories(xapi: PanXapi, devicegroup: str, panorama: bool = False) 
             for cat in xm[0]:
                 categories.append(cat.get('name'))
     
-    #xpath = '/config/predefined/url-categories'
+    #xpath = '/config/predefined/url-categories'  # returns wrong names
     #xapi.get(xpath)
     xapi.op(cmd="<show><predefined><xpath>/predefined/pan-url-categories</xpath></predefined></show>")
     xm = xapi.element_root.find('result')
@@ -257,7 +266,7 @@ def get_applications(xapi: PanXapi, devicegroup: str, panorama: bool = False) ->
             for app in xm[0]:
                 applications.append(app.get('name'))
     
-    #xpath = '/config/predefined/application'
+    #xpath = '/config/predefined/application' # returns wrong names
     #xapi.get(xpath)
     xapi.op(cmd="<show><predefined><xpath>/predefined/application</xpath></predefined></show>")
     xm = xapi.element_root.find('result')
@@ -266,3 +275,84 @@ def get_applications(xapi: PanXapi, devicegroup: str, panorama: bool = False) ->
             applications.append(app.get('name'))
     
     return applications
+
+
+def get_profiles(xapi: PanXapi, panorama: bool = False, devicegroup: str = "", profile_type: str = "") -> (list | dict):
+    types = [
+        'groups',
+        'virus',
+        'vulnerability',
+        'spyware',
+        'url-filtering',
+        'file-blocking',
+        'data-filtering',
+        'wildfire-analysis',
+        'all-profiles'
+    ]
+    if profile_type not in types:
+        raise Exception("Invalid profile type provided: {}\n Profile type must be one of the following: \n- {}".format(profile_type, "\n- ".join(types)))
+
+    dg_stack = get_device_group_stack(xapi) if panorama else {}
+    dg_list = get_parent_dgs(xapi, devicegroup, dg_stack)
+    profiles = {} if profile_type == 'all-profiles' else []
+
+    sub_xpath = 'profile-group' if profile_type == 'groups' else 'profiles/{}'.format(profile_type)
+    if profile_type == 'all-profiles':
+        sub_xpath = 'profiles'
+        types.remove('groups')
+        types.remove('all-profiles')
+        for t in types:
+            profiles[t] = []
+    
+    if len(dg_list) > 0 and devicegroup != "":
+        for dg in dg_list:
+            xpath = '/config/devices/entry[@name="localhost.localdomain"]/device-group/entry[@name="{}"]/{}'.format(dg, sub_xpath) if panorama else '/config/devices/entry/vsys/entry/{}'.format(sub_xpath)
+            xapi.get(xpath)
+            xm = xapi.element_root.find('result')
+            if len(xm):
+                if profile_type == 'all-profiles':
+                    for t in types:
+                        element = xm[0].find(t)
+                        if element is not None and len(element):
+                            for e in element:
+                                if e.get('name') not in profiles[t]:
+                                    profiles[t].append(e.get('name'))
+                else:
+                    for p in xm[0]:
+                        if (p.get('name') not in profiles and profile_type in ['groups','data-filtering']) or (p.text not in profiles and profile_type != 'groups'):
+                            profiles.append(p.text if profile_type not in ['groups','data-filtering'] else p.get('name'))
+    
+    if devicegroup not in dg_list or not panorama:
+        xpath = '/config/devices/entry[@name="localhost.localdomain"]/device-group/entry[@name="{}"]/{}'.format(dg, sub_xpath) if panorama else '/config/devices/entry/vsys/entry/{}'.format(sub_xpath)
+        xapi.get(xpath)
+        xm = xapi.element_root.find('result')
+        if len(xm):
+            if profile_type == 'all-profiles':
+                for t in types:
+                    element = xm[0].find(t)
+                    if element is not None and len(element):
+                        for e in element:
+                            if e.get('name') not in profiles[t]:
+                                profiles[t].append(e.get('name'))
+            else:
+                for p in xm[0]:
+                    if (p.get('name') not in profiles and profile_type in ['groups','data-filtering']) or (p.text not in profiles and profile_type != 'groups'):
+                        profiles.append(p.text if profile_type not in ['groups','data-filtering'] else p.get('name'))
+
+    xpath = '/config/predefined/{}'.format(sub_xpath)
+    xapi.get(xpath)
+    xm = xapi.element_root.find('result')
+    if len(xm):
+        if profile_type == 'all-profiles':
+            for t in types:
+                element = xm[0].find(t)
+                if element is not None and len(element):
+                    for e in element:
+                        if e.get('name') not in profiles[t]:
+                            profiles[t].append(e.get('name'))
+        else:
+            for p in xm[0]:
+                if p.get('name') not in profiles:
+                    profiles.append(p.get('name'))
+
+    return profiles
