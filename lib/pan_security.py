@@ -368,9 +368,10 @@ def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, ac
             xm = panx.element_root.find('result')
             log_forwarders = {}
             count = 1 
-            for entry in xm[0]:
-                log_forwarders[count] = entry.get('name')
-                count += 1
+            if len(xm):
+                for entry in xm[0]:
+                    log_forwarders[count] = entry.get('name')
+                    count += 1
 
         log_forwarder = verify_selection(log_forwarders,"Which log forwarding profile would you like to apply?:", False, True)
         del log_forwarders, count
@@ -902,7 +903,7 @@ def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
                     print("Removing existing profiles from {} in {}".format(rule, rulebase) if panorama else "Removing existing profiles from {}".format(rule))
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/profile-setting'.format(rulebase, rule) if panorama else device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/profile-setting'.format(rule)
                 panx.set(xpath, element="<group><member>{}</member></group>".format(selection))
-                print("Setting profile group to {} for {} in {}".format(rule, rulebase) if panorama else "Setting profile group to {} for {}".format(rule))
+                print("Setting profile group to {} for {} in {}".format(selection, rule, rulebase) if panorama else "Setting profile group to {} for {}".format(selection, rule))
         
     if profile_type == 4:
         # Remove all profiles from rule.
