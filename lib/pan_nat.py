@@ -17,10 +17,7 @@ from re import split
 from lib.common import verify_selection
 from lib.common import get_device_group_stack
 from lib.common import get_parent_dgs
-from lib.common import get_url_categories
-from lib.common import get_applications
 from lib.common import commit
-from lib.common import get_profiles
 from lib.common import list_to_dict
 from lib.common import panorama_xpath_objects_base
 from lib.common import panorama_xpath_templates_base
@@ -106,7 +103,7 @@ def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/{}'.format(rulebase, rule, source_dest)
                 print("{} zone(s): {} {} rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(zone_selection), 'to' if action == 'add' else 'from', rule, rulebase))
                 panx.edit(xpath=xpath,element=zone_xml[rule])
-                print(panx.status.capitalize(), zone_xml[rule])
+                print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
             xpath = device_xpath_base + 'rulebase/nat/rules/entry[@name=\'{}\']/{}'.format(rule, source_dest)
@@ -144,7 +141,6 @@ def update_rule_address(panx : PanXapi, rules: dict, panorama : bool, action : s
 
     # If removing last address, must put member 'any' in
     for rule in new_address_list.keys():
-        print(rule, len(new_address_list[rule]))
         if len(new_address_list[rule]) < 1:
             new_address_list[rule].append('any')
 
@@ -422,26 +418,24 @@ round-robin
 
 def main(panx: PanXapi, panorama: bool = False) -> None:
     actions = {
-        1:'Add to Rule(s)',
-        2:'Delete from Rule(s)',
-        3:'Enable Rule(s)',
-        4:'Disable Rule(s)',
-        5:'Rename Rule(s)' #,
-        #6:'Update Profiles',  to add later
-        #7:'Change Rule Action' to add later
+        1: 'Add to Rule(s)',
+        2: 'Delete from Rule(s)',
+        3: 'Enable Rule(s)',
+        4: 'Disable Rule(s)',
+        5: 'Rename Rule(s)',
+        6: 'Update Destination Zone'
     }
     add_delete_actions = {
-        1:'Source Zone',
-        2:'Destination Zone',
-        3:'Source Address',
-        4:'Destination Address',
-        5:'Destination Interface',
-        6:'Service',
-        7:'Source Translation Type',
-        8:'Destination Translation Type',
-        9: 'Tag',
-        10: 'Group by Tag'#,
-        #11: 'Description' # to add later
+        1: 'Source Zone',
+        2: 'Source Address',
+        3: 'Destination Address',
+        4: 'Destination Interface',
+        5: 'Service',
+        6: 'Source Translation Type',
+        7: 'Destination Translation Type',
+        8: 'Tag',
+        9: 'Group by Tag'#,
+        #10: 'Description' # to add later
     }
 
 
@@ -646,38 +640,38 @@ def main(panx: PanXapi, panorama: bool = False) -> None:
 
     # Add To nat Policies
     if get_task == 1:
-        # Source / Destination Zone
-        if sub_task in [1,2]:
-            update_rule_zones(panx, rules, panorama, 'add', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
+        # Source Zone
+        if sub_task == 1:
+            update_rule_zones(panx, rules, panorama, 'add', 'from', rule_data, devicegroup)
         
         # Source / Destination Address
-        if sub_task in [3,4]:
-            update_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+        if sub_task in [2,3]:
+            update_rule_address(panx, rules, panorama, 'add', 'source' if sub_task == 2 else 'destination', rule_data, devicegroup)
         
         # Tags
-        if sub_task == 9:
+        if sub_task == 8:
             update_rule_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
         # Group by Tags
-        if sub_task == 10:
+        if sub_task == 9:
             update_rule_group_by_tags(panx,rules,panorama,'add',rule_data, devicegroup)
 
     # Remove From nat Policies
     if get_task == 2: 
-        # Source / Destination Zone
-        if sub_task in [1,2]:
-            update_rule_zones(panx, rules, panorama, 'remove', 'from' if sub_task == 1 else 'to', rule_data, devicegroup)
+        # Source Zone
+        if sub_task == 1:
+            update_rule_zones(panx, rules, panorama, 'remove', 'from', rule_data, devicegroup)
         
         # Source / Destination Address
-        if sub_task in [3,4]:
-            update_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 3 else 'destination', rule_data, devicegroup)
+        if sub_task in [2,3]:
+            update_rule_address(panx, rules, panorama, 'remove', 'source' if sub_task == 2 else 'destination', rule_data, devicegroup)
         
         # Tags
-        if sub_task == 9:
+        if sub_task == 8:
             update_rule_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
         # Group by Tags
-        if sub_task == 10:
+        if sub_task == 9:
             update_rule_group_by_tags(panx,rules,panorama,'remove',rule_data, devicegroup)
 
     # Enable Rules
@@ -691,6 +685,10 @@ def main(panx: PanXapi, panorama: bool = False) -> None:
     # Rename Rules
     if get_task == 5:
         rename_rules(panx, rules, panorama, rule_data, devicegroup)
+    
+    # Destination Zone
+    if get_task == 6:
+        update_rule_zones(panx, rules, panorama, 'add', 'to', rule_data, devicegroup)
 
     # Commit and Push
     do_commit = input("Would you like to commit? (Y/N):\n Note. this will push to all devices in selected the device group.\n ") if panorama else input("Would you like to commit? (Y/N):\n ")
