@@ -22,7 +22,8 @@ import base64
 import os
 import sys
 import lib.pan_security as pan_security
-from lib.common import file_exists
+import lib.pan_nat as pan_nat
+from lib.common import file_exists, verify_selection
 
 
 
@@ -107,7 +108,12 @@ def main(pan_host: str = None) -> None:
     if model == "Panorama":
         panorama = True
     
-    pan_security.main(panx, panorama)
+    rule_type = verify_selection({
+        1: 'Security',
+        2: 'NAT'
+    }, "Which type of policy do you wish to update?\n", False, True)
+    globals()['pan_'+rule_type.lower()].main(panx, panorama) 
+    #pan_security.main(panx, panorama)
 
 if __name__ == '__main__':
     # Set firewall / panorama address
