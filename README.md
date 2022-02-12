@@ -1,14 +1,14 @@
-# Bulk Update tool for Palo Alto Firewall and Panorama security policies
+# Bulk Update tool for Palo Alto Firewall and Panorama policies
 
 ## Purpose
-With this tool you can update multiple security policies at once. For Panorama usage, it will only work on all rules within one device group.
+With this tool you can update multiple security or NAT policies at once. For Panorama usage, it will only work on all rules within one device group.
 Only one change can be made per run (I.E. add source zone to all at once).
 Work is still in progress, once I have all functionality 100% then I will refactor the code to make it cleaner and more logical.
 
 
 ## Requirements
 This script has been built for python3. No testing has been performed on python2 and as such is not supported.  
-The following pip packages are required for operation:
+The following pip packages are included for operation:
  - pan-python
 
 
