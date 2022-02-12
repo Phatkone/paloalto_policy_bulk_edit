@@ -17,7 +17,7 @@ from pan.xapi import PanXapi
 
 device_xpath_base = '/config/devices/entry/vsys/entry/'
 panorama_xpath_objects_base = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/'
-panorama_xpath_templates_base = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/'
+panorama_xpath_templates_base = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/'
 
 def list_to_dict(l: list, start: int = 1):
     return dict(zip(range(start, len(l) + start), l))
@@ -356,3 +356,92 @@ def get_profiles(xapi: PanXapi, panorama: bool = False, devicegroup: str = "", p
                     profiles.append(p.get('name'))
 
     return profiles
+
+
+def get_interfaces(panx: PanXapi, panorama: bool = False, template: str = "") -> dict:
+    if template == "" and panorama:
+        raise Exception("Invalid template '{}'".format(template))
+    
+    interfaces = {}
+    # Get template if Panorama
+    if panorama: 
+        xpath =  panorama_xpath_templates_base.format(template) + 'network/interface'
+    else:
+        xpath = device_xpath_base + 'network/interface'
+
+    panx.get(xpath)
+    xm = panx.element_root.find('result')
+
+    for interface_type in xm[0]:
+        for interface in interface_type:
+            interfaces[interface.get('name')] = {}
+            interfaces[interface.get('name')]['type'] = interface[1].tag
+            if interface.find('layer3') is not None and interface.find('layer3').find('ip') is not None:
+                interfaces[interface.get('name')]['ip'] = []
+                for ip in interface.find('layer3').find('ip'):
+                    interfaces[interface.get('name')]['ip'].append(ip.get('name'))
+
+    return interfaces
+
+
+def get_services(panx: PanXapi, panorama: bool, devicegroup: str) -> dict:
+    services = {}
+    dg_stack = get_device_group_stack(panx) if panorama else {}
+    dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
+    count = 1
+    
+    if len(dg_list) > 0 and devicegroup != "":
+        for dg in dg_list:
+            #Get service list for selection
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(dg)
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service in xm[0]:
+                    services[count] = service.get('name')
+                    count+=1
+            #Get service groups list for selection
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(dg)
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for service_group in xm[0]:
+                    services[count] = service_group.get('name')
+                    count+=1
+    
+    if devicegroup not in dg_list or not panorama:
+        #Get service list for selection
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(devicegroup) if panorama else device_xpath_base + 'service'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for service in xm[0]:
+                services[count] = service.get('name')
+                count+=1
+        #Get service groups list for selection
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(devicegroup) if panorama else device_xpath_base + 'service-group'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for service_group in xm[0]:
+                services[count] = service_group.get('name')
+                count+=1
+            
+    if panorama: 
+        #get services from 'Shared'
+        xpath = '/config/shared/service'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for service in xm[0]:
+                services[count] = service.get('name')
+                count+=1
+        #get services from 'predefined'
+        xpath = '/config/predefined/service'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for service in xm[0]:
+                services[count] = service.get('name')
+                count+=1
+    return services

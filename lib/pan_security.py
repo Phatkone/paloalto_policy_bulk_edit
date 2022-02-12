@@ -15,20 +15,23 @@ GNU GPL License applies.
 from pan.xapi import PanXapi
 from re import match
 from re import split
-from lib.common import verify_selection
-from lib.common import get_device_group_stack
-from lib.common import get_parent_dgs
-from lib.common import get_url_categories
-from lib.common import get_applications
-from lib.common import commit
-from lib.common import get_profiles
-from lib.common import list_to_dict
-from lib.common import panorama_xpath_objects_base
-from lib.common import panorama_xpath_templates_base
-from lib.common import device_xpath_base
+try:
+    from lib.common import verify_selection
+    from lib.common import get_device_group_stack
+    from lib.common import get_parent_dgs
+    from lib.common import get_url_categories
+    from lib.common import get_applications
+    from lib.common import get_services
+    from lib.common import commit
+    from lib.common import get_profiles
+    from lib.common import list_to_dict
+    from lib.common import panorama_xpath_objects_base
+    from lib.common import panorama_xpath_templates_base
+    from lib.common import device_xpath_base
+except ImportError:
+    pass
 
-
-def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
+def update_rule_zones(panx: PanXapi, rules: dict, panorama: bool, action: str, source_dest: str, rule_data: dict, devicegroup: str = "") -> None:
     zones = {}
     # Get template if Panorama
     if panorama: 
@@ -41,7 +44,7 @@ def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str
             count += 1
         template = verify_selection(templates, "Which Template does the zone belong to?:", False, True)
         del templates_xml, count, templates      
-        xpath = panorama_xpath_templates_base.format(template) + 'zone'
+        xpath = panorama_xpath_templates_base.format(template) + 'vsys/entry[@name=\'vsys1\']/zone'
     else:
         xpath = device_xpath_base + 'zone'
 
@@ -98,7 +101,7 @@ def update_rule_zones(panx : PanXapi, rules: dict, panorama : bool, action : str
             print(panx.status.capitalize())
 
 
-def update_rule_address(panx : PanXapi, rules: dict, panorama : bool, action : str, source_dest: str, rule_data : dict, devicegroup: str = "") -> None:
+def update_rule_address(panx: PanXapi, rules: dict, panorama: bool, action: str, source_dest: str, rule_data: dict, devicegroup: str = "") -> None:
     if action == 'add':
         address = input("What address would you like to add?: (Use CIDR Notation I.E. 10.0.0.0/8)\n")
         if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address):
@@ -260,7 +263,7 @@ def update_application(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
             print(panx.status.capitalize())
 
 
-def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, action: str, devicegroup : str = "", categories_list: list = []) -> None:
+def update_url_category(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, action: str, devicegroup: str = "", categories_list: list = []) -> None:
 
     if len(categories_list) < 1:
         categories_list = get_url_categories(panx, devicegroup, panorama)
@@ -317,7 +320,7 @@ def update_url_category(panx : PanXapi, rules : dict, panorama : bool, rule_data
             print(panx.status.capitalize())
 
 
-def update_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action : str, start_end : str, devicegroup: str = "") -> None:
+def update_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action: str, start_end: str, devicegroup: str = "") -> None:
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -331,7 +334,7 @@ def update_start_end_logging(panx: PanXapi, rules: dict, panorama: bool, action 
             print(panx.status.capitalize())
 
 
-def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, action: str, rule_data: dict, devicegroup: str = "") -> None:
     if action == 'remove':
         if panorama:
             for rulebase, rulelist in rules.items():
@@ -391,7 +394,7 @@ def update_rule_log_forwarding(panx : PanXapi, rules : dict, panorama : bool, ac
                 print(panx.status.capitalize())
 
 
-def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_tags(panx: PanXapi, rules: dict, panorama: bool, action: str, rule_data: dict, devicegroup: str = "") -> None:
     tags = {}
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
@@ -467,7 +470,7 @@ def update_rule_tags(panx : PanXapi, rules : dict, panorama : bool, action : str
             print(panx.status.capitalize())
 
 
-def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, action : str, rule_data : dict, devicegroup : str = "") -> None:
+def update_rule_group_by_tags(panx: PanXapi, rules: dict, panorama: bool, action: str, rule_data: dict, devicegroup: str = "") -> None:
     tags = {}
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
@@ -532,7 +535,7 @@ def update_rule_group_by_tags(panx : PanXapi, rules : dict, panorama : bool, act
             print(panx.status.capitalize())
     
 
-def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : str, devicegroup: str = "") -> None:
+def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action: str, devicegroup: str = "") -> None:
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -546,7 +549,7 @@ def enable_disable_rules(panx: PanXapi, rules: dict, panorama: bool, action : st
             print(panx.status.capitalize())
 
 
-def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+def rename_rules(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
     action = verify_selection({
         1: 'Append rule names',
         2: 'Prepend rule names',
@@ -645,7 +648,7 @@ def rename_rules(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict
                 print(panx.status.capitalize())
 
 
-def update_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_action : str, devicegroup : str = "") -> None:
+def update_rule_action(panx: PanXapi, rules: dict, panorama: bool, rule_action: str, devicegroup: str = "") -> None:
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -657,7 +660,7 @@ def update_rule_action(panx : PanXapi, rules : dict, panorama : bool, rule_actio
             panx.set(xpath=xpath,element="<action>{}</action>".format(rule_action.lower().replace(' ','-')))
                 
 
-def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+def update_description(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
     action = verify_selection({
         1: 'Append rule description',
         2: 'Prepend rule description',
@@ -724,7 +727,7 @@ def update_description(panx : PanXapi, rules : dict, panorama : bool, rule_data 
                 print(panx.status.capitalize())
 
 
-def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+def update_service(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
     action = verify_selection({
         1: 'Add Service',
         2: 'Remove Service',
@@ -735,69 +738,9 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
     service_selection = {}
 
     if action in [1,2]:
-        services = {}
-        dg_stack = get_device_group_stack(panx) if panorama else {}
-        dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
-        count = 1
-        
-        if len(dg_list) > 0 and devicegroup != "":
-            for dg in dg_list:
-                #Get service list for selection
-                xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(dg)
-                panx.get(xpath)
-                xm = panx.element_root.find('result')
-                if len(xm):
-                    for service in xm[0]:
-                        services[count] = service.get('name')
-                        count+=1
-                #Get service groups list for selection
-                xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(dg)
-                panx.get(xpath)
-                xm = panx.element_root.find('result')
-                if len(xm):
-                    for service_group in xm[0]:
-                        services[count] = service_group.get('name')
-                        count+=1
-        
-        if devicegroup not in dg_list or not panorama:
-            #Get service list for selection
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service'.format(devicegroup) if panorama else device_xpath_base + 'service'
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
-            if len(xm):
-                for service in xm[0]:
-                    services[count] = service.get('name')
-                    count+=1
-            #Get service groups list for selection
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'service-group'.format(devicegroup) if panorama else device_xpath_base + 'service-group'
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
-            if len(xm):
-                for service_group in xm[0]:
-                    services[count] = service_group.get('name')
-                    count+=1
-                
-        if panorama: 
-            #get services from 'Shared'
-            xpath = '/config/shared/service'
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
-            if len(xm):
-                for service in xm[0]:
-                    services[count] = service.get('name')
-                    count+=1
-            #get services from 'predefined'
-            xpath = '/config/predefined/service'
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
-            if len(xm):
-                for service in xm[0]:
-                    services[count] = service.get('name')
-                    count+=1
-        del count
-
+        services = get_services(panx, panorama, devicegroup)
         service_selection = verify_selection(services, "Which Service(s) do you wish to {}?:".format(action), True, True)
-        del services, dg_stack, dg_list
+        del services
     
 
     new_service_list = {}
@@ -853,14 +796,14 @@ def update_service(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
             print(panx.status.capitalize())
 
 
-def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : dict, devicegroup : str = "") -> None:
+def update_profile(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
     profile_type = verify_selection({
         1: "All Profiles",
         2: "Single Profile",
         3: "Group",
         4: "Remove Group / All Profiles",
         5: "Remove Single Profile"
-        }, "Which action would you like to take?\n")
+        }, "Which action would you like to take?")
     profile_types = [
         'virus',
         'vulnerability',
@@ -876,10 +819,10 @@ def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
         profile_selection = {}
         if profile_type == 1:
             for profile in profile_types:
-                profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:\n".format(profile), False, True, True)
+                profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:".format(profile), False, True, True)
         else:
-            profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to update?\n", False, True)
-            profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:\n".format(profile), False, True)
+            profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to update?", False, True)
+            profile_selection[profile] = verify_selection(list_to_dict(profiles[profile],1), "Select {} profile:".format(profile), False, True)
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 if rule_data[rule]['profile-setting']['type'] in [None,'profiles']:
@@ -893,7 +836,7 @@ def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
     if profile_type == 3:
         # Get profile groups and set accordingly.
         profiles = get_profiles(panx, panorama, devicegroup, 'groups')
-        selection = verify_selection(list_to_dict(profiles, 1), "Which profile group would you like to set?\n", False, True)
+        selection = verify_selection(list_to_dict(profiles, 1), "Which profile group would you like to set?", False, True)
 
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
@@ -915,7 +858,7 @@ def update_profile(panx : PanXapi, rules : dict, panorama : bool, rule_data : di
         
     if profile_type == 5:
         # Remove single profile from rule.
-        profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to remove?\n", False, True)
+        profile = verify_selection(list_to_dict(profile_types, 1), "Which profile would you like to remove?", False, True)
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
                 if rule_data[rule]['profile-setting']['type'] == 'profiles':
@@ -957,7 +900,7 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
 
     get_task = verify_selection(actions,"Input an action to perform:", False)
     if get_task in [1,2]: #Add/Remove elements
-        sub_task = verify_selection(add_delete_actions, "Which element do you wish to {} rule(s):\n ".format("add to" if get_task == 1 else "remove from"), False)
+        sub_task = verify_selection(add_delete_actions, "Which element do you wish to {} rule(s):".format("add to" if get_task == 1 else "remove from"), False)
 
     if panorama:
         panx.op('show devicegroups', cmd_xml=True)
@@ -1259,5 +1202,5 @@ def main(panx: PanXapi = None, panorama: str = "") -> None:
 
 
 if __name__ == '__main__':
-    print("Call script from main.py")
+    print("Illegal call. Call script from pan_bulk_update.py")
     exit()
