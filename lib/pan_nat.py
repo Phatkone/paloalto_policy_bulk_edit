@@ -489,7 +489,8 @@ def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_d
         4: 'Remove (None)'
     }, "What source translation type would you like?")
     
-    """if source_translation is not None:
+    if source_translation_type == 1:
+        """if source_translation is not None:
         source_type = source_translation[0].tag
         rule_data[rule]['source-nat-type'] = source_type
         if source_type == 'dynamic-ip-and-port':
@@ -500,18 +501,31 @@ def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_d
                 source_ips = []
                 for s in source_translation[0].find('translated-address'):
                     source_ips.append(s.text)
-                rule_data[rule]['source-ips'] = source_ips
+                rule_data[rule]['source-ips'] = source_ips"""
+        pass
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
 
-        if source_type == 'dynamic-ip':
-            source_ips = []
+    if source_translation_type == 2:
+        """'dynamic-ip'
+           source_ips = []
             for s in source_translation[0].find('translated-address'):
                 source_ips.append(s.text)
-            rule_data[rule]['source-ips'] = source_ips
+            rule_data[rule]['source-ips'] = source_ips"""
+        pass
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
 
-        if source_type == 'static-ip':
-            rule_data[rule]['source-ip'] = source_translation[0].find('translated-address').text
+    if source_translation_type == 3:
+        """rule_data[rule]['source-ip'] = source_translation[0].find('translated-address').text
             if source_translation[0].find('translated-address').find('bi-directional') is not None:
                 rule_data[rule]['bi-directional'] = source_translation[0].find('translated-address').find('bi-directional').text"""
+        pass
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)     
                               
     if source_translation_type == 4:
         for rulebase, rule_list in rules.items():
@@ -669,16 +683,6 @@ def update_description(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
                 print("Setting description for: {}.".format(rule))
                 panx.set(xpath=xpath,element="<description>{}</description>".format(new_des))
                 print(panx.status.capitalize())
-
-
-"""
-Destination dynamic distribution:
-least-sessions
-ip-hash
-ip-modulo
-source-ip-hash
-round-robin
-"""
 
 
 def main(panx: PanXapi, panorama: bool = False) -> None:
