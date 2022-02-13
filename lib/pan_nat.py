@@ -519,14 +519,27 @@ def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_d
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
 
     if source_translation_type == 3:
-        """rule_data[rule]['source-ip'] = source_translation[0].find('translated-address').text
-            if source_translation[0].find('translated-address').find('bi-directional') is not None:
-                rule_data[rule]['bi-directional'] = source_translation[0].find('translated-address').find('bi-directional').text"""
-        pass
+        address_objects = get_address_objects(panx, panorama, devicegroup, True)
+        address = input("Enter address object name or IP address of source address (case sensitive):\n> ")
+        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address) and (address not in address_objects.values()):
+            print('Invalid Address Entered: {}'.format(address))
+            exit()
+        if '/' not in address and address not in address_objects.values():
+            address += '/32'
+            print("No CIDR Notation found, treating as /32")
+        element = "<source-translation><static-ip><translated-address>{}</translated-address>".format(address)
+        if verify_selection({
+            1: 'Yes',
+            2: 'No'
+        }, "Enable Bi-Directional Translation") == 1:
+            element += "<bi-directional>yes</bi-directional>"
+        element += "</static-ip></source-translation>"
         for rulebase, rule_list in rules.items():
             for rule in rule_list:
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)     
-                              
+                panx.edit(xpath=xpath, element=element)
+                print("Setting Static Source IP '{}' for rule {} in rulebase {}".format(address, rule, rulebase) if panorama else "Setting Static Source IP '{}' for rule {}".format(address, rule))
+
     if source_translation_type == 4:
         for rulebase, rule_list in rules.items():
             for rule in rule_list:
