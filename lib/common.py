@@ -358,11 +358,21 @@ def get_profiles(xapi: PanXapi, panorama: bool = False, devicegroup: str = "", p
     return profiles
 
 
-def get_interfaces(panx: PanXapi, panorama: bool = False, template: str = "") -> dict:
+def get_interfaces(panx: PanXapi, panorama: bool = False, template: str = "", layer3: bool = False) -> dict:
     if template == "" and panorama:
         raise Exception("Invalid template '{}'".format(template))
     
     interfaces = {}
+    interface_types = [
+        'layer3',
+        'layer2',
+        'tap',
+        'virtual-wire',
+        'ha',
+        'log-card',
+        'decrypt-mirror',
+        'aggregate-group'
+    ]
     # Get template if Panorama
     if panorama: 
         xpath =  panorama_xpath_templates_base.format(template) + 'network/interface'
@@ -372,15 +382,30 @@ def get_interfaces(panx: PanXapi, panorama: bool = False, template: str = "") ->
     panx.get(xpath)
     xm = panx.element_root.find('result')
 
-    for interface_type in xm[0]:
-        for interface in interface_type:
-            interfaces[interface.get('name')] = {}
-            interfaces[interface.get('name')]['type'] = interface[1].tag
-            if interface.find('layer3') is not None and interface.find('layer3').find('ip') is not None:
-                interfaces[interface.get('name')]['ip'] = []
-                for ip in interface.find('layer3').find('ip'):
-                    interfaces[interface.get('name')]['ip'].append(ip.get('name'))
-
+    for interface_category in xm:
+        for interface_type in interface_category:
+            for interface in interface_type:
+                for i in interface_types:
+                    if (interface.find(i) is not None):
+                        int_type = i
+                print(int_type)
+                if layer3 and int_type != 'layer3':
+                    continue
+                interfaces[interface.get('name')] = {}
+                interfaces[interface.get('name')]['type'] = int_type
+                if int_type == 'layer3' and interface.find('layer3').find('ip') is not None:
+                    interfaces[interface.get('name')]['ip'] = []
+                    for ip in interface.find('layer3').find('ip'):
+                        interfaces[interface.get('name')]['ip'].append(ip.get('name'))
+                units =  interface.find(int_type).find('units')
+                if units is not None and len(units) > 0:
+                    for unit in units:
+                        interfaces[unit.get('name')] = {}
+                        interfaces[unit.get('name')]['type'] = int_type
+                        if int_type == 'layer3' and unit.find('ip') is not None:
+                            interfaces[unit.get('name')]['ip'] = []
+                            for ip in unit.find('ip'):
+                                interfaces[unit.get('name')]['ip'].append(ip.get('name'))
     return interfaces
 
 
