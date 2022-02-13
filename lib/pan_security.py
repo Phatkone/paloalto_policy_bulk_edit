@@ -22,6 +22,7 @@ try:
     from lib.common import get_url_categories
     from lib.common import get_applications
     from lib.common import get_services
+    from lib.common import get_address_objects
     from lib.common import commit
     from lib.common import get_profiles
     from lib.common import list_to_dict
@@ -103,11 +104,12 @@ def update_rule_zones(panx: PanXapi, rules: dict, panorama: bool, action: str, s
 
 def update_rule_address(panx: PanXapi, rules: dict, panorama: bool, action: str, source_dest: str, rule_data: dict, devicegroup: str = "") -> None:
     if action == 'add':
-        address = input("What address would you like to add?: (Use CIDR Notation I.E. 10.0.0.0/8)\n")
-        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address):
-            print('Invalid IP Address')
+        address_objects = get_address_objects(panx, panorama, devicegroup, True)
+        address = input("What address would you like to add?: (Use CIDR Notation I.E. 10.0.0.0/8 or an existing address/address-group object)\n")
+        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address) and (address not in address_objects.values()):
+            print('Invalid Address')
             exit()
-        if '/' not in address:
+        if '/' not in address and address not in address_objects.values():
             address += '/32'
             print("No CIDR Notation found, treating as /32")
     else:

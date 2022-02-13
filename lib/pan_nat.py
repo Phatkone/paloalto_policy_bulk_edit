@@ -20,6 +20,7 @@ try:
     from lib.common import get_parent_dgs
     from lib.common import get_interfaces
     from lib.common import get_services
+    from lib.common import get_address_objects
     from lib.common import commit
     from lib.common import list_to_dict
     from lib.common import panorama_xpath_objects_base
@@ -480,12 +481,115 @@ def rename_rules(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, de
                 print(panx.status.capitalize())
 
 
-def update_source_translation():
+def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
+    
+    """if source_translation is not None:
+        source_type = source_translation[0].tag
+        rule_data[rule]['source-nat-type'] = source_type
+        if source_type == 'dynamic-ip-and-port':
+            if source_translation[0].find('interface-address') is not None:
+                rule_data[rule]['source-interface'] = source_translation[0].find('interface-address').find('interface').text
+                rule_data[rule]['source-ip'] = source_translation[0].find('interface-address').find('ip').text if source_translation[0].find('interface-address').find('ip') is not None else None
+            if source_translation[0].find('translated-address') is not None:
+                source_ips = []
+                for s in source_translation[0].find('translated-address'):
+                    source_ips.append(s.text)
+                rule_data[rule]['source-ips'] = source_ips
+
+        if source_type == 'dynamic-ip':
+            source_ips = []
+            for s in source_translation[0].find('translated-address'):
+                source_ips.append(s.text)
+            rule_data[rule]['source-ips'] = source_ips
+
+        if source_type == 'static-ip':
+            rule_data[rule]['source-ip'] = source_translation[0].find('translated-address').text
+            if source_translation[0].find('translated-address').find('bi-directional') is not None:
+                rule_data[rule]['bi-directional'] = source_translation[0].find('translated-address').find('bi-directional').text"""
     pass
 
 
-def update_destination_translation():
-    pass
+def update_destination_translation(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
+    destination_translation_type = verify_selection({
+        1: 'Dynamic Destination Translation',
+        2: 'Destination Translation',
+        3: 'Remove (None)'
+    }, "What destination translation type would you like?")
+    if destination_translation_type == 1:
+        address_objects = get_address_objects(panx, panorama, devicegroup, True)
+        address = input("Enter address object name or IP address of destination (case sensitive):\n> ")
+        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address) and (address not in address_objects.values()):
+            print('Invalid Address Entered: {}'.format(address))
+            exit()
+        if '/' not in address and address not in address_objects.values():
+            address += '/32'
+            print("No CIDR Notation found, treating as /32")
+        port = input("Destination port? (Leave blank for default traffic port, numberical value only I.E. 443):\n> ")
+        if port == "":
+            port = None
+        if port is not None and not match(r'^\d{1,5}$', port):
+            print("Invalid port number")
+        session_distribution = verify_selection({
+            1: 'round-robin',
+            2: 'source-ip-hash',
+            3: 'ip-modulo',
+            4: 'ip-hash',
+            5: 'least-sessions'
+        }, "Session Distribution Method?",False , True)
+        element = "<dynamic-destination-translation><translated-address>{}</translated-address>".format(address)
+        if port is not None:
+            element += "<translated-port>{}</translated-port>".format(port)
+        element += "<distribution>{}</distribution></dynamic-destination-translation>".format(session_distribution)
+
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/dynamic-destination-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/dynamic-destination-translation'.format(rule)
+                panx.edit(xpath=xpath, element=element)
+                print("Setting Dynamic Destination Translation for {} in {}".format(rule, rulebase) if panorama else "Setting Dynamic Destination Translation for {}".format(rule))
+
+    if destination_translation_type == 2:
+        address_objects = get_address_objects(panx, panorama, devicegroup, False)
+        address = input("Enter address object name or IP address of destination (case sensitive):\n> ")
+        if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address) and (address not in address_objects.values()):
+            print('Invalid Address Entered: {}'.format(address))
+            exit()
+        if '/' not in address and address not in address_objects.values():
+            address += '/32'
+            print("No CIDR Notation found, treating as /32")
+        port = input("Destination port? (Leave blank for default traffic port, numberical value only I.E. 443):\n> ")
+        if port == "":
+            port = None
+        if port is not None and not match(r'^\d{1,5}$', port):
+            print("Invalid port number")
+        dns_rewrite = verify_selection({
+            1: 'Yes',
+            2: 'No'
+        }, "Enable DNS Rewrite?")
+        element = "<destination-translation><translated-address>{}</translated-address>".format(address)
+        if port is not None:
+            element += "<translated-port>{}</translated-port>".format(port)
+        if dns_rewrite == 1:
+            dns_rewrite_direction = verify_selection({
+                1: 'Forward',
+                2: 'Reverse'
+            }, "DNS Rewrite Direction?", False, True)
+            element += "<dns-rewrite><direction>{}</direction></dns-rewrite>".format(dns_rewrite_direction.lower())
+        element += "</destination-translation>"
+
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/destination-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/destination-translation'.format(rule)
+                panx.edit(xpath=xpath, element=element)
+                print("Setting Destination Translation for {} in {}".format(rule, rulebase) if panorama else "Setting Destination Translation for {}".format(rule))
+               
+    if destination_translation_type == 3:
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/destination-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/destination-translation'.format(rule)
+                panx.delete(xpath=xpath)
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/dynamic-destination-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/dynamic-destination-translation'.format(rule)
+                panx.delete(xpath=xpath)
+                print("Removing Destination Translation from {} in {}".format(rule, rulebase) if panorama else "Removing Destination Translation from {}".format(rule))
                 
 
 def update_description(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
@@ -855,7 +959,7 @@ def main(panx: PanXapi, panorama: bool = False) -> None:
 
     # Destination Translation
     if get_task == 8:
-        update_destination_translation()
+        update_destination_translation(panx, rules, panorama, rule_data, devicegroup)
 
     # Description
     if get_task == 9:

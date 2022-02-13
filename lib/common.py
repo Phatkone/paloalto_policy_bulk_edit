@@ -445,3 +445,79 @@ def get_services(panx: PanXapi, panorama: bool, devicegroup: str) -> dict:
                 services[count] = service.get('name')
                 count+=1
     return services
+
+
+def get_address_objects(panx: PanXapi, panorama: bool, devicegroup: str, include_groups: bool = False) -> dict:
+    address_objects = {}
+    dg_stack = get_device_group_stack(panx) if panorama else {}
+    dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
+    count = 1
+    
+    if len(dg_list) > 0 and devicegroup != "":
+        for dg in dg_list:
+            #Get address list for selection
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'address'.format(dg)
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for address in xm[0]:
+                    address_objects[count] = address.get('name')
+                    count+=1
+            #Get address groups list for selection
+            if include_groups:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + 'address-group'.format(dg)
+                panx.get(xpath)
+                xm = panx.element_root.find('result')
+                if len(xm):
+                    for address_group in xm[0]:
+                        address_objects[count] = address_group.get('name')
+                        count+=1
+    
+    if devicegroup not in dg_list or not panorama:
+        #Get address list for selection
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'address'.format(devicegroup) if panorama else device_xpath_base + 'address'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for address in xm[0]:
+                address_objects[count] = address.get('name')
+                count+=1
+        if include_groups:
+            #Get address groups list for selection
+            xpath = panorama_xpath_objects_base.format(devicegroup) + 'address-group'.format(devicegroup) if panorama else device_xpath_base + 'address-group'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for address_group in xm[0]:
+                    address_objects[count] = address_group.get('name')
+                    count+=1
+            
+    if panorama: 
+        #get address from 'Shared'
+        xpath = '/config/shared/address'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for address in xm[0]:
+                address_objects[count] = address.get('name')
+                count+=1
+        
+        if include_groups:
+            #get address groups from 'Shared'
+            xpath = '/config/shared/address-group'
+            panx.get(xpath)
+            xm = panx.element_root.find('result')
+            if len(xm):
+                for address in xm[0]:
+                    address_objects[count] = address.get('name')
+                    count+=1
+                    
+        #get address from 'predefined'
+        xpath = '/config/predefined/address'
+        panx.get(xpath)
+        xm = panx.element_root.find('result')
+        if len(xm):
+            for address in xm[0]:
+                address_objects[count] = address.get('name')
+                count+=1
+    return address_objects
