@@ -508,15 +508,32 @@ def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_d
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
 
     if source_translation_type == 2:
-        """'dynamic-ip'
+        """
+         To Add - Fallback - translated/interface address
+        'dynamic-ip'
            source_ips = []
             for s in source_translation[0].find('translated-address'):
                 source_ips.append(s.text)
             rule_data[rule]['source-ips'] = source_ips"""
-        pass
+        address_objects = get_address_objects(panx, panorama, devicegroup, True)
+        addresses = input("Enter address object names or IP addresses of source address? (Separate by single space) (case sensitive):\n> ").replace(', ',' ').replace(',',' ').split(' ')
+        count = 0
+        element = "<source-translation><dynamic-ip><translated-address>"
+        for address in addresses:
+            if not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/([0-9]|[1-2][0-9]|3[0-2])$', address) and not match(r'^((0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}(0?0?[0-9]|0?[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$', address) and (address not in address_objects.values()):
+                print('Invalid Address Entered: {}'.format(address))
+                exit()
+            if '/' not in address and address not in address_objects.values():
+                addresses[count] = "{}/32".format(address)
+                print("No CIDR Notation found, treating as /32")
+            element += "<member>{}</member>".format(address)
+            count += 1
+        element += "</translated-address></dynamic-ip></source-translation>"
         for rulebase, rule_list in rules.items():
             for rule in rule_list:
                 xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
+                panx.edit(xpath=xpath, element=element)
+                print("Setting Dynamic Source IP(s) '{}' for rule {} in rulebase {}".format(" ".join(addresses), rule, rulebase) if panorama else "Setting Dynamic Source IP(s) '{}' for rule {}".format(" ".join(addresses), rule))
 
     if source_translation_type == 3:
         address_objects = get_address_objects(panx, panorama, devicegroup, True)
