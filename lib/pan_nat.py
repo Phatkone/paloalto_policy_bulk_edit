@@ -482,6 +482,12 @@ def rename_rules(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, de
 
 
 def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
+    source_translation_type = verify_selection({
+        1: 'Dynamic Source IP and Port Translation',
+        2: 'Dynamic Source IP Translation',
+        3: 'Static Source IP Translation',
+        4: 'Remove (None)'
+    }, "What source translation type would you like?")
     
     """if source_translation is not None:
         source_type = source_translation[0].tag
@@ -506,7 +512,13 @@ def update_source_translation(panx: PanXapi, rules: dict, panorama: bool, rule_d
             rule_data[rule]['source-ip'] = source_translation[0].find('translated-address').text
             if source_translation[0].find('translated-address').find('bi-directional') is not None:
                 rule_data[rule]['bi-directional'] = source_translation[0].find('translated-address').find('bi-directional').text"""
-    pass
+                              
+    if source_translation_type == 4:
+        for rulebase, rule_list in rules.items():
+            for rule in rule_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/nat/rules/entry[@name=\'{}\']/source-translation'.format(rulebase, rule) if panorama else 'nat/rules/entry[@name=\'{}\']/source-translation'.format(rule)
+                panx.delete(xpath=xpath)
+                print("Removing Destination Translation from {} in {}".format(rule, rulebase) if panorama else "Removing Destination Translation from {}".format(rule))
 
 
 def update_destination_translation(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, devicegroup: str = "") -> None:
@@ -955,7 +967,7 @@ def main(panx: PanXapi, panorama: bool = False) -> None:
 
     # Source Translation
     if get_task == 7:
-        update_source_translation()
+        update_source_translation(panx, rules, panorama, rule_data, devicegroup)
 
     # Destination Translation
     if get_task == 8:
