@@ -253,16 +253,28 @@ def update_application(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
     if panorama:
         for rulebase, rulelist in rules.items():
             for rule in rulelist:
-                xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/application'.format(rulebase, rule)
-                print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule, rulebase))
-                panx.edit(xpath=xpath,element=application_xml[rule])
-                print(panx.status.capitalize())
+                if action == 'remove':
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']/application'.format(rulebase, rule)
+                    print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule, rulebase))
+                    panx.edit(xpath=xpath,element=application_xml[rule])
+                    print(panx.status.capitalize())
+                else:
+                    xpath = panorama_xpath_objects_base.format(devicegroup) + '{}/security/rules/entry[@name=\'{}\']'.format(rulebase, rule)
+                    print("{} application(s): {} {}  rule: '{}' in rulebase: {}".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule, rulebase))
+                    panx.set(xpath=xpath,element=application_xml[rule])
+                    print(panx.status.capitalize())
     else:
         for rule in rules['devicelocal']:
-            xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
-            print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
-            panx.edit(xpath=xpath,element=application_xml[rule])
-            print(panx.status.capitalize())
+            if action == 'remove':
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
+                print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
+                panx.edit(xpath=xpath,element=application_xml[rule])
+                print(panx.status.capitalize())
+            else:
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
+                panx.set(xpath=xpath,element=application_xml[rule])
+                print(panx.status.capitalize())
 
 
 def update_url_category(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, action: str, devicegroup: str = "", categories_list: list = []) -> None:
@@ -403,7 +415,7 @@ def update_rule_tags(panx: PanXapi, rules: dict, panorama: bool, action: str, ru
     
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(dg) + 'tag'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
@@ -413,7 +425,7 @@ def update_rule_tags(panx: PanXapi, rules: dict, panorama: bool, action: str, ru
                     count+=1
     
     if devicegroup not in dg_list or not panorama:
-        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(devicegroup) if panorama else device_xpath_base + 'tag'
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag' if panorama else device_xpath_base + 'tag'
         #Get tag list for selection
         panx.get(xpath)
         xm = panx.element_root.find('result')
@@ -480,7 +492,7 @@ def update_rule_group_by_tags(panx: PanXapi, rules: dict, panorama: bool, action
     ### need to do this cleanly....
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(dg) + 'tag'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
@@ -490,7 +502,7 @@ def update_rule_group_by_tags(panx: PanXapi, rules: dict, panorama: bool, action
                     count+=1
     
     if devicegroup not in dg_list or not panorama:
-        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(devicegroup) if panorama else device_xpath_base + 'tag'
+        xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag' if panorama else device_xpath_base + 'tag'
         #Get tag list for selection
         panx.get(xpath)
         xm = panx.element_root.find('result')

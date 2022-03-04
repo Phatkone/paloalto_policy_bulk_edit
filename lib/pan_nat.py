@@ -238,7 +238,7 @@ def update_rule_tags(panx: PanXapi, rules: dict, panorama: bool, action: str, ru
     
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(dg) + 'tag'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
@@ -312,7 +312,7 @@ def update_rule_group_by_tags(panx: PanXapi, rules: dict, panorama: bool, action
     
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'tag'.format(dg)
+            xpath = panorama_xpath_objects_base.format(dg) + 'tag'
             panx.get(xpath)
             xm = panx.element_root.find('result')
             count = 1
