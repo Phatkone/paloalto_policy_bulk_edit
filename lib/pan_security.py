@@ -271,7 +271,7 @@ def update_application(panx: PanXapi, rules: dict, panorama: bool, rule_data: di
                 panx.edit(xpath=xpath,element=application_xml[rule])
                 print(panx.status.capitalize())
             else:
-                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']'.format(rule)
+                xpath = device_xpath_base + 'rulebase/security/rules/entry[@name=\'{}\']/application'.format(rule)
                 print("{} application(s): {} {}  rule: '{}'".format('Adding' if action == 'add' else 'Removing', " ".join(applications), 'to' if action == 'add' else 'from', rule))
                 panx.set(xpath=xpath,element=application_xml[rule])
                 print(panx.status.capitalize())
@@ -365,14 +365,30 @@ def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, actio
                 print(panx.status.capitalize())
     else: # Add log forwarder
         if panorama:
-            xpath = panorama_xpath_objects_base.format(devicegroup) + 'log-settings/profiles'.format(devicegroup)
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
+            dg_stack = get_device_group_stack(panx) if panorama else {}
+            dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
             log_forwarders = {}
-            count = 1 
-            for entry in xm[0]:
-                log_forwarders[count] = entry.get('name')
-                count += 1
+            count = 1
+
+            if len(dg_list) > 0 and devicegroup != "":
+                for dg in dg_list:
+                    xpath = panorama_xpath_objects_base.format(dg) + 'log-settings/profiles'
+                    panx.get(xpath)
+                    xm = panx.element_root.find('result')
+                    if len(xm):
+                        for tag in xm[0]:
+                            log_forwarders[count] = tag.get('name')
+                            count+=1
+
+            if devicegroup not in dg_list:
+                xpath = panorama_xpath_objects_base.format(devicegroup) + 'log-settings/profiles'
+                panx.get(xpath)
+                xm = panx.element_root.find('result')
+                if len(xm):
+                    for entry in xm[0]:
+                        log_forwarders[count] = entry.get('name')
+                        count += 1
+
             xpath = '/config/shared/log-settings/profiles'
             panx.get(xpath)
             xm = panx.element_root.find('result')
@@ -489,7 +505,6 @@ def update_rule_group_by_tags(panx: PanXapi, rules: dict, panorama: bool, action
     dg_stack = get_device_group_stack(panx) if panorama else {}
     dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
     
-    ### need to do this cleanly....
     if len(dg_list) > 0 and devicegroup != "":
         for dg in dg_list:
             xpath = panorama_xpath_objects_base.format(dg) + 'tag'
@@ -758,7 +773,6 @@ def update_service(panx: PanXapi, rules: dict, panorama: bool, rule_data: dict, 
     
 
     new_service_list = {}
-    # Get current tags belonging to the selected rules. these have to be pushed in with the new tags (or without the tags for removal)
     for rules_list in rules.values():
         for rule in rules_list:
             new_service_list[rule] = []
