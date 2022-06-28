@@ -364,10 +364,10 @@ def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, actio
                 panx.delete(xpath)
                 print(panx.status.capitalize())
     else: # Add log forwarder
+        log_forwarders = {}
         if panorama:
             dg_stack = get_device_group_stack(panx) if panorama else {}
             dg_list = get_parent_dgs(panx, devicegroup, dg_stack)
-            log_forwarders = {}
             count = 1
 
             if len(dg_list) > 0 and devicegroup != "":
@@ -396,16 +396,18 @@ def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, actio
                 log_forwarders[count] = entry.get('name') 
                 count += 1   
         else:
-            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/log-settings/profiles'
-            #/config/shared/log-settings/syslog' # why was i looking here? clean this up...
-            panx.get(xpath)
-            xm = panx.element_root.find('result')
-            log_forwarders = {}
+            xpaths = [
+                '/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/log-settings/profiles',
+                '/config/shared/log-settings/syslog'
+                ]
             count = 1 
-            if len(xm):
-                for entry in xm[0]:
-                    log_forwarders[count] = entry.get('name')
-                    count += 1
+            for xpath in xpaths:
+                panx.get(xpath)
+                xm = panx.element_root.find('result')
+                if len(xm):
+                    for entry in xm[0]:
+                        log_forwarders[count] = entry.get('name')
+                        count += 1
 
         log_forwarder = verify_selection(log_forwarders,"Which log forwarding profile would you like to apply?:", False, True)
         del log_forwarders, count
