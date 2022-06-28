@@ -396,7 +396,8 @@ def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, actio
                 log_forwarders[count] = entry.get('name') 
                 count += 1   
         else:
-            xpath = '/config/shared/log-settings/syslog'
+            xpath = '/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/log-settings/profiles'
+            #/config/shared/log-settings/syslog' # why was i looking here? clean this up...
             panx.get(xpath)
             xm = panx.element_root.find('result')
             log_forwarders = {}
