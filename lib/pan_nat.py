@@ -891,6 +891,8 @@ def main(panx: PanXapi, panorama: bool = False) -> None:
 
         if r['xml'].find('description') is not None:
             rule_data[rule]['description'] = r['xml'].find('description').text
+        else:
+            rule_data[rule]['description'] = ""
 
         if r['xml'].find('active-active-device-binding') is not None:
             rule_data[rule]['active-active-device-binding'] = r['xml'].find('active-active-device-binding').text
