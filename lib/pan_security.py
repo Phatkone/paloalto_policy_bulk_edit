@@ -12,10 +12,10 @@ GNU GPL License applies.
 -------ooO-(_)-Ooo-------
 
 """
-from pan.xapi import PanXapi
 from re import match
 from re import split
 try:
+    from pan.xapi import PanXapi
     from lib.common import verify_selection
     from lib.common import get_device_group_stack
     from lib.common import get_parent_dgs
@@ -30,7 +30,10 @@ try:
     from lib.common import panorama_xpath_templates_base
     from lib.common import device_xpath_base
 except ImportError:
-    pass
+    print("Error importing required libraries")
+    exit()
+
+device_xpath_base += 'vsys/entry/'
 
 def update_rule_zones(panx: PanXapi, rules: dict, panorama: bool, action: str, source_dest: str, rule_data: dict, devicegroup: str = "") -> None:
     zones = {}
@@ -392,9 +395,10 @@ def update_rule_log_forwarding(panx: PanXapi, rules: dict, panorama: bool, actio
             xpath = '/config/shared/log-settings/profiles'
             panx.get(xpath)
             xm = panx.element_root.find('result')
-            for entry in xm[0]:
-                log_forwarders[count] = entry.get('name') 
-                count += 1   
+            if len(xm):
+                for entry in xm[0]:
+                    log_forwarders[count] = entry.get('name') 
+                    count += 1   
         else:
             xpaths = [
                 '/config/devices/entry[@name=\'localhost.localdomain\']/vsys/entry[@name=\'vsys1\']/log-settings/profiles',

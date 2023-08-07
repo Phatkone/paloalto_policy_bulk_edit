@@ -1,8 +1,8 @@
 """
 Author: Phatkone
-Description: Bulk update tool for Palo Alto security policies. Can be used with Panorama or the firewalls directly.
-Dependencies: pan-python
-Usage: `python3 pan_security_bulk_update.py` or `python3 pan_security_bulk_update.py <host ip or fqdn>`
+Description: Bulk update tool for Palo Alto NAT and security policies. Can be used with Panorama or the firewalls directly.
+Dependencies: pan-python - Packaged
+Usage: `python3 pan_bulk_update.py` or `python3 pan_bulk_update.py <host ip or fqdn>`
  All inputs required are in prompt format within the script.
 
 GNU GPL License applies.
@@ -23,6 +23,7 @@ import os
 import sys
 import lib.pan_security as pan_security
 import lib.pan_nat as pan_nat
+import lib.pan_int_mgmt as pan_int_mgmt
 from lib.common import file_exists, verify_selection
 
 
@@ -110,9 +111,15 @@ def main(pan_host: str = None) -> None:
     
     rule_type = verify_selection({
         1: 'Security',
-        2: 'NAT'
+        2: 'NAT',
+        3: 'Interface Management Profile'
     }, "Which type of policy do you wish to update?\n", False, True)
-    globals()['pan_'+rule_type.lower()].main(panx, panorama) 
+    file_mapping = {
+        'Security': 'pan_security',
+        'NAT': 'pan_nat',
+        'Interface Management Profile': 'pan_int_mgmt'
+    }
+    globals()[file_mapping[rule_type]].main(panx, panorama) 
     #pan_security.main(panx, panorama)
 
 if __name__ == '__main__':

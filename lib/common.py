@@ -15,7 +15,7 @@ GNU GPL License applies.
 
 from pan.xapi import PanXapi
 
-device_xpath_base = '/config/devices/entry/vsys/entry/'
+device_xpath_base = '/config/devices/entry/'
 panorama_xpath_objects_base = '/config/devices/entry[@name=\'localhost.localdomain\']/device-group/entry[@name=\'{}\']/'
 panorama_xpath_templates_base = '/config/devices/entry/template/entry[@name=\'{}\']/config/devices/entry[@name=\'localhost.localdomain\']/'
 
@@ -122,7 +122,7 @@ def job_status(xapi: PanXapi, job: str) -> tuple:
 	return xapi.status, results
 
 
-def commit(panx: PanXapi, panorama: bool = False, devicegroup: str = "") -> None:
+def commit(panx: PanXapi, panorama: bool = False, devicegroup: str = "", template: str = "") -> None:
     from time import sleep
 
     commit_description = input("\n\nCommit description?: \n ")

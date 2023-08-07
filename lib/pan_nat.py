@@ -11,10 +11,10 @@ Usage: `python3 pan_nat_bulk_update.py` or `python3 pan_nat_bulk_update.py <host
  All inputs required are in prompt format within the script.
 """
 
-from pan.xapi import PanXapi
 from re import match
 from re import split
 try:
+    from pan.xapi import PanXapi
     from lib.common import verify_selection
     from lib.common import get_device_group_stack
     from lib.common import get_parent_dgs
@@ -27,7 +27,10 @@ try:
     from lib.common import panorama_xpath_templates_base
     from lib.common import device_xpath_base
 except ImportError:
-    pass
+    print("Error importing required libraries")
+    exit()
+
+device_xpath_base += 'vsys/entry/'
 
 def update_rule_zones(panx: PanXapi, rules: dict, panorama: bool, action: str, source_dest: str, rule_data: dict, devicegroup: str = "") -> None:
     zones = {}
